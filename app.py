@@ -965,7 +965,6 @@ def index():
     if ref_code:
         session['ref_code'] = ref_code
     
-    # گرفتن کاربر از دیتابیس
     conn = get_db()
     c = conn.cursor()
     if session.get('user_code'):
@@ -1000,7 +999,6 @@ def register():
     conn = get_db()
     c = conn.cursor()
     
-    # چک کن کاربر قبلاً ثبت‌نام کرده
     c.execute("SELECT * FROM users WHERE mobile = ?", (mobile,))
     existing = c.fetchone()
     if existing:
@@ -1037,7 +1035,6 @@ def register():
             new_points = referrer['points'] + 1
             new_invites = referrer['invites'] + 1
             
-            # محاسبه قفل‌های جدید
             unlocked_count = 5
             if new_points >= 3:
                 unlocked_count = max(unlocked_count, 6)
@@ -1086,7 +1083,6 @@ def register():
                      (new_points, unlocked_count, new_invites, ref_code))
             conn.commit()
     
-    # ذخیره کاربر جدید
     c.execute('''
         INSERT INTO users (name, mobile, email, national_code, address, postal_code, code, points, unlocked, invites, invited_by, invited_by_name)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1110,9 +1106,7 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
-
+# ============ صفحات دیتابیس و ادمین ============
 @app.route('/db')
 def db_viewer():
     conn = get_db()
@@ -1122,15 +1116,46 @@ def db_viewer():
     conn.close()
     return render_template_string("""
     <html dir='rtl'>
-    <head><title>دیتابیس</title></head>
-    <body style="font-family:Tahoma;background:#f0f2f5;padding:20px;">
-        <h1>📊 لیست کاربران</h1>
-        <table border="1" style="border-collapse:collapse;width:100%;background:#fff;">
-            <tr><th>ID</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد معرف</th><th>امتیاز</th><th>تاریخ</th></tr>
-            {% for u in users %}
-            <tr><td>{{ u.id }}</td><td>{{ u.name }}</td><td>{{ u.mobile }}</td><td>{{ u.email }}</td><td>{{ u.code }}</td><td>{{ u.points }}</td><td>{{ u.registered_at[:16] }}</td></tr>
-            {% endfor %}
-        </table>
+    <head>
+        <title>دیتابیس کاربران</title>
+        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+        <style>
+            body{font-family:'Vazirmatn',Tahoma;background:#f0f2f5;padding:20px;}
+            .container{max-width:1200px;margin:0 auto;background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,0.05);}
+            h1{color:#1a73e8;font-size:24px;margin-bottom:20px;}
+            table{width:100%;border-collapse:collapse;font-size:14px;}
+            th{background:#e8f0fe;padding:12px;text-align:right;border-bottom:2px solid #d2e3fc;}
+            td{padding:10px 12px;border-bottom:1px solid #eef2f7;}
+            tr:hover{background:#f8faff;}
+            .badge{background:#e8f0fe;color:#1a73e8;padding:2px 10px;border-radius:30px;font-size:12px;}
+            .back{color:#1a73e8;text-decoration:none;font-weight:600;}
+            .back:hover{text-decoration:underline;}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📊 دیتابیس کاربران</h1>
+            <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
+            <table>
+                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>کد معرف</th><th>امتیاز</th><th>دعوت‌ها</th><th>تاریخ ثبت</th></tr>
+                {% for u in users %}
+                <tr>
+                    <td>{{ u.id }}</td>
+                    <td><strong>{{ u.name }}</strong></td>
+                    <td dir="ltr">{{ u.mobile }}</td>
+                    <td>{{ u.email or '-' }}</td>
+                    <td>{{ u.national_code or '-' }}</td>
+                    <td><code>{{ u.code }}</code></td>
+                    <td>{{ u.points }}</td>
+                    <td>{{ u.invites }}</td>
+                    <td dir="ltr" style="font-size:12px;color:#5f6368;">{{ u.registered_at[:16] }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="9" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
+                {% endfor %}
+            </table>
+            <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
+        </div>
     </body>
     </html>
     """, users=users)
@@ -1144,15 +1169,48 @@ def admin():
     conn.close()
     return render_template_string("""
     <html dir='rtl'>
-    <head><title>پنل مدیریت</title></head>
-    <body style="font-family:Tahoma;background:#f0f2f5;padding:20px;">
-        <h1>🔐 پنل مدیریت</h1>
-        <table border="1" style="border-collapse:collapse;width:100%;background:#fff;">
-            <tr><th>ID</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد معرف</th><th>امتیاز</th><th>دعوت‌ها</th></tr>
-            {% for u in users %}
-            <tr><td>{{ u.id }}</td><td>{{ u.name }}</td><td>{{ u.mobile }}</td><td>{{ u.email }}</td><td>{{ u.code }}</td><td>{{ u.points }}</td><td>{{ u.invites }}</td></tr>
-            {% endfor %}
-        </table>
+    <head>
+        <title>پنل مدیریت</title>
+        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+        <style>
+            body{font-family:'Vazirmatn',Tahoma;background:#f0f2f5;padding:20px;}
+            .container{max-width:1200px;margin:0 auto;background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,0.05);}
+            h1{color:#1a73e8;font-size:24px;margin-bottom:20px;}
+            table{width:100%;border-collapse:collapse;font-size:14px;}
+            th{background:#e8f0fe;padding:12px;text-align:right;border-bottom:2px solid #d2e3fc;}
+            td{padding:10px 12px;border-bottom:1px solid #eef2f7;}
+            tr:hover{background:#f8faff;}
+            .badge{background:#e8f0fe;color:#1a73e8;padding:2px 10px;border-radius:30px;font-size:12px;}
+            .back{color:#1a73e8;text-decoration:none;font-weight:600;}
+            .back:hover{text-decoration:underline;}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🔐 پنل مدیریت</h1>
+            <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
+            <table>
+                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد معرف</th><th>امتیاز</th><th>جلسات باز</th><th>دعوت‌ها</th></tr>
+                {% for u in users %}
+                <tr>
+                    <td>{{ u.id }}</td>
+                    <td><strong>{{ u.name }}</strong></td>
+                    <td dir="ltr">{{ u.mobile }}</td>
+                    <td>{{ u.email or '-' }}</td>
+                    <td><code>{{ u.code }}</code></td>
+                    <td>{{ u.points }}</td>
+                    <td>{{ u.unlocked }}</td>
+                    <td>{{ u.invites }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
+                {% endfor %}
+            </table>
+            <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
+        </div>
     </body>
     </html>
     """, users=users)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080, debug=True)
