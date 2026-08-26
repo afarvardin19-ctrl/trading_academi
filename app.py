@@ -653,7 +653,6 @@ HTML = """
                     <input type="email" name="email" placeholder="📧 ایمیل" required>
                     <input type="text" name="address" placeholder="🏠 آدرس منزل">
                     <input type="text" name="postal_code" placeholder="📮 کد پستی">
-                    <input type="text" name="ref_code" placeholder="🔑 کد معرف (اگر دارید)">
                     <button type="submit" class="btn-gold">ثبت‌نام و مشاهده دوره</button>
                 </form>
             </div>
@@ -698,7 +697,6 @@ def register():
     email = request.form.get('email')
     address = request.form.get('address', '')
     postal_code = request.form.get('postal_code', '')
-    ref_code = request.form.get('ref_code', '').strip()
     
     conn = get_db()
     c = conn.cursor()
@@ -708,9 +706,10 @@ def register():
     if existing:
         conn.close()
         return """
-        <div style="text-align:center;padding:50px;font-family:Vazirmatn,Tahoma;background:#f0f2f5;min-height:100vh;">
-            <h2 style="color:#ea4335;">⚠️ این شماره قبلاً ثبت‌نام کرده!</h2>
-            <a href="/" style="color:#1a73e8;">↩ بازگشت</a>
+        <div style="text-align:center;padding:60px 20px;font-family:'Vazirmatn',Tahoma;background:#f0f2f5;color:#1a1a2e;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;">
+            <div style="font-size:64px;margin-bottom:20px;">⚠️</div>
+            <h2 style="color:#ea4335;font-size:26px;">این شماره قبلاً ثبت‌نام کرده!</h2>
+            <a href="/" style="color:#1a73e8;text-decoration:none;margin-top:20px;border:1px solid #1a73e8;padding:10px 30px;border-radius:40px;transition:0.3s;">↩ بازگشت به سایت</a>
         </div>
         """
     
@@ -722,12 +721,83 @@ def register():
     conn.close()
     
     return f"""
-    <div style="text-align:center;padding:50px;font-family:Vazirmatn,Tahoma;background:#f0f2f5;min-height:100vh;">
-        <div style="font-size:64px;margin-bottom:20px;">🎉</div>
-        <h2 style="color:#1a73e8;">✅ ثبت‌نام با موفقیت انجام شد!</h2>
-        <p style="color:#5f6368;margin:10px 0;">به آکادمی ترید خوش آمدید!</p>
-        <a href="/" style="color:#1a73e8;text-decoration:none;border:1px solid #1a73e8;padding:10px 30px;border-radius:40px;display:inline-block;margin-top:20px;">↩ شروع یادگیری</a>
-    </div>
+    <!DOCTYPE html>
+    <html lang="fa" dir="rtl">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ثبت‌نام موفق</title>
+        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+        <style>
+            *{{ margin:0; padding:0; box-sizing:border-box; }}
+            body{{
+                font-family:'Vazirmatn',Tahoma,sans-serif;
+                background:linear-gradient(135deg, #f0f2f5 0%, #e8ecf1 100%);
+                color:#1a1a2e;
+                min-height:100vh;
+                display:flex;
+                justify-content:center;
+                align-items:center;
+                padding:20px;
+            }}
+            .success-box{{
+                background:#ffffff;
+                border-radius:32px;
+                padding:50px 60px;
+                max-width:520px;
+                width:100%;
+                text-align:center;
+                box-shadow:0 20px 60px rgba(0,0,0,0.08);
+                border-top:5px solid #1a73e8;
+            }}
+            .icon{{ font-size:72px; margin-bottom:16px; }}
+            h2{{ color:#1a73e8; font-size:26px; font-weight:800; margin-bottom:8px; }}
+            .sub{{ color:#5f6368; font-size:14px; line-height:2; margin-bottom:20px; }}
+            .box{{
+                background:#e8f0fe;
+                border-radius:16px;
+                padding:16px 20px;
+                margin:16px 0 24px;
+                border-right:4px solid #1a73e8;
+                text-align:right;
+            }}
+            .box p{{ font-size:13px; color:#1a1a2e; line-height:2; }}
+            .box i{{ color:#0f9d58; margin-left:8px; }}
+            .btn{{
+                background:linear-gradient(135deg, #1a73e8, #1557b0);
+                color:#fff;
+                border:none;
+                padding:14px 40px;
+                border-radius:60px;
+                font-size:16px;
+                font-weight:700;
+                font-family:inherit;
+                cursor:pointer;
+                transition:all 0.3s;
+                text-decoration:none;
+                display:inline-block;
+            }}
+            .btn:hover{{
+                transform:translateY(-3px);
+                box-shadow:0 10px 35px rgba(26,115,232,0.3);
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="success-box">
+            <div class="icon">🎓</div>
+            <h2>ثبت‌نام شما با موفقیت انجام شد</h2>
+            <p class="sub">به خانواده بزرگ آکادمی ترید خوش آمدید.<br>هم‌اکنون می‌توانید ویدیوهای آموزشی را مشاهده کنید.</p>
+            <div class="box">
+                <p><i class="fas fa-unlock"></i> <b>۵ جلسه آموزشی</b> برای شما باز شده است</p>
+                <p><i class="fas fa-certificate"></i> پس از تکمیل دوره، <b>مدرک معتبر</b> دریافت می‌کنید</p>
+                <p><i class="fas fa-user-plus"></i> با دعوت دوستان، جلسات بیشتر را باز کنید</p>
+            </div>
+            <a href="/" class="btn"><i class="fas fa-play-circle"></i> شروع یادگیری</a>
+        </div>
+    </body>
+    </html>
     """
 
 # ============ صفحات دیتابیس و ادمین ============
