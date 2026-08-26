@@ -22,6 +22,9 @@ def save_users(users):
 
 users = load_users()
 
+def generate_code():
+    return 'VIP-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
 lessons = [
     {"id": 1, "name": "کندل‌شناسی", "free": True},
     {"id": 2, "name": "حمایت و مقاومت", "free": True},
@@ -641,6 +644,7 @@ HTML = """
                     <input type="email" name="email" placeholder="📧 ایمیل" required>
                     <input type="text" name="address" placeholder="🏠 آدرس منزل">
                     <input type="text" name="postal_code" placeholder="📮 کد پستی">
+                    <input type="text" name="ref_code" placeholder="🔑 کد معرف (اگر دارید)">
                     <button type="submit" class="btn-gold">ثبت‌نام و مشاهده دوره</button>
                 </form>
             </div>
@@ -686,6 +690,7 @@ def register():
     email = request.form.get('email')
     address = request.form.get('address', '')
     postal_code = request.form.get('postal_code', '')
+    ref_code = request.form.get('ref_code', '').strip()
     
     # چک کن قبلاً ثبت‌نام کرده
     if mobile in users:
@@ -697,13 +702,22 @@ def register():
         </div>
         """
     
+    # تولید کد معرف
+    if ref_code:
+        # چک کن کد معرف معتبر هست
+        ref_code = ref_code.strip().upper()
+        # کد معرف رو توی دیتا ذخیره کن
+    else:
+        ref_code = generate_code()
+    
     # ذخیره کاربر
     users[mobile] = {
         'name': name,
         'email': email,
         'national_code': national_code,
         'address': address,
-        'postal_code': postal_code
+        'postal_code': postal_code,
+        'ref_code': ref_code
     }
     save_users(users)
     
@@ -769,6 +783,21 @@ def register():
                 transform:translateY(-3px);
                 box-shadow:0 10px 35px rgba(26,115,232,0.3);
             }}
+            .ref-box{{
+                background:#fef7e0;
+                border-radius:12px;
+                padding:12px 16px;
+                margin:10px 0 16px;
+                border:1px solid #ffd700;
+                text-align:center;
+            }}
+            .ref-box span{{
+                font-size:18px;
+                font-weight:700;
+                color:#e37400;
+                letter-spacing:2px;
+                font-family:monospace;
+            }}
         </style>
     </head>
     <body>
@@ -776,6 +805,9 @@ def register():
             <div class="icon">🎓</div>
             <h2>ثبت‌نام شما با موفقیت انجام شد</h2>
             <p class="sub">به خانواده بزرگ آکادمی ترید خوش آمدید.<br>هم‌اکنون می‌توانید ویدیوهای آموزشی را مشاهده کنید.</p>
+            <div class="ref-box">
+                🔑 کد معرف شما: <span>{ref_code}</span>
+            </div>
             <div class="box">
                 <p><i class="fas fa-unlock"></i> <b>۵ جلسه آموزشی</b> برای شما باز شده است</p>
                 <p><i class="fas fa-certificate"></i> پس از تکمیل دوره، <b>مدرک معتبر</b> دریافت می‌کنید</p>
@@ -813,7 +845,7 @@ def db_viewer():
             <h1>📊 دیتابیس کاربران</h1>
             <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
             <table>
-                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th></tr>
+                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th></tr>
                 {% for mobile, user in users.items() %}
                 <tr>
                     <td>{{ loop.index }}</td>
@@ -823,9 +855,10 @@ def db_viewer():
                     <td>{{ user.national_code or '-' }}</td>
                     <td style="max-width:200px;word-wrap:break-word;">{{ user.address or '-' }}</td>
                     <td dir="ltr">{{ user.postal_code or '-' }}</td>
+                    <td><code>{{ user.ref_code or '-' }}</code></td>
                 </tr>
                 {% else %}
-                <tr><td colspan="7" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
+                <tr><td colspan="8" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
                 {% endfor %}
             </table>
             <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
@@ -859,7 +892,7 @@ def admin():
             <h1>🔐 پنل مدیریت</h1>
             <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
             <table>
-                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th></tr>
+                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th></tr>
                 {% for mobile, user in users.items() %}
                 <tr>
                     <td>{{ loop.index }}</td>
@@ -869,9 +902,10 @@ def admin():
                     <td>{{ user.national_code or '-' }}</td>
                     <td style="max-width:200px;word-wrap:break-word;">{{ user.address or '-' }}</td>
                     <td dir="ltr">{{ user.postal_code or '-' }}</td>
+                    <td><code>{{ user.ref_code or '-' }}</code></td>
                 </tr>
                 {% else %}
-                <tr><td colspan="7" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
+                <tr><td colspan="8" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
                 {% endfor %}
             </table>
             <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
