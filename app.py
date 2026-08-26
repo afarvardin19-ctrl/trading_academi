@@ -1,11 +1,44 @@
 from flask import Flask, render_template_string, request, session, redirect, url_for
 import random
 import string
+import sqlite3
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'secret_key_12345'
 
-users = {}
+# ============ دیتابیس ============
+def get_db():
+    conn = sqlite3.connect('users.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            mobile TEXT UNIQUE NOT NULL,
+            email TEXT,
+            national_code TEXT,
+            address TEXT,
+            postal_code TEXT,
+            code TEXT UNIQUE NOT NULL,
+            points INTEGER DEFAULT 0,
+            unlocked INTEGER DEFAULT 5,
+            invites INTEGER DEFAULT 0,
+            invited_by TEXT,
+            invited_by_name TEXT,
+            registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+    print("✅ دیتابیس راه‌اندازی شد!")
+
+init_db()
 
 def generate_code():
     return 'VIP-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -50,6 +83,7 @@ def get_invites_needed(lesson_id):
         return 10
     return 0
 
+# ============ HTML ============
 HTML = """
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -924,11 +958,26 @@ HTML = """
 </html>
 """
 
+# ============ روت‌های اصلی ============
 @app.route('/')
 def index():
     ref_code = request.args.get('ref', '')
     if ref_code:
         session['ref_code'] = ref_code
+    
+    # گرفتن کاربر از دیتابیس
+    conn = get_db()
+    c = conn.cursor()
+    if session.get('user_code'):
+        c.execute("SELECT * FROM users WHERE code = ?", (session['user_code'],))
+        user = c.fetchone()
+        if user:
+            session['name'] = user['name']
+            session['mobile'] = user['mobile']
+            session['points'] = user['points']
+            session['unlocked'] = user['unlocked']
+            session['invites'] = user['invites']
+    conn.close()
     
     if not session.get('user_code'):
         if not session.get('temp_code'):
@@ -936,7 +985,7 @@ def index():
     else:
         session.pop('temp_code', None)
     
-    return render_template_string(HTML, users=users, lessons=lessons, get_invites_needed=get_invites_needed)
+    return render_template_string(HTML, users={}, lessons=lessons, get_invites_needed=get_invites_needed)
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -948,14 +997,20 @@ def register():
     postal_code = request.form.get('postal_code', '')
     ref_code = request.form.get('ref_code', '').strip()
     
-    if mobile in users:
-        session['user_code'] = users[mobile]['code']
-        session['name'] = users[mobile]['name']
-        session['mobile'] = mobile
-        session['email'] = users[mobile].get('email', '')
-        session['points'] = users[mobile]['points']
-        session['unlocked'] = users[mobile]['unlocked']
-        session['invites'] = users[mobile]['invites']
+    conn = get_db()
+    c = conn.cursor()
+    
+    # چک کن کاربر قبلاً ثبت‌نام کرده
+    c.execute("SELECT * FROM users WHERE mobile = ?", (mobile,))
+    existing = c.fetchone()
+    if existing:
+        session['user_code'] = existing['code']
+        session['name'] = existing['name']
+        session['mobile'] = existing['mobile']
+        session['points'] = existing['points']
+        session['unlocked'] = existing['unlocked']
+        session['invites'] = existing['invites']
+        conn.close()
         return redirect(url_for('index'))
     
     temp_code = session.get('temp_code')
@@ -974,80 +1029,74 @@ def register():
         ref_code = session.get('ref_code')
     
     if ref_code:
-        for uid, data in users.items():
-            if data.get('code') == ref_code:
-                invited_by = uid
-                invited_by_name = data.get('name')
-                users[uid]['points'] = users[uid].get('points', 0) + 1
-                users[uid]['invites'] = users[uid].get('invites', 0) + 1
-                
-                current_points = users[uid]['points']
-                unlocked_count = 5
-                if current_points >= 3:
-                    unlocked_count = max(unlocked_count, 6)
-                if current_points >= 6:
-                    unlocked_count = max(unlocked_count, 7)
-                if current_points >= 9:
-                    unlocked_count = max(unlocked_count, 8)
-                if current_points >= 12:
-                    unlocked_count = max(unlocked_count, 9)
-                if current_points >= 15:
-                    unlocked_count = max(unlocked_count, 10)
-                if current_points >= 18:
-                    unlocked_count = max(unlocked_count, 11)
-                if current_points >= 21:
-                    unlocked_count = max(unlocked_count, 12)
-                if current_points >= 24:
-                    unlocked_count = max(unlocked_count, 13)
-                if current_points >= 27:
-                    unlocked_count = max(unlocked_count, 14)
-                if current_points >= 30:
-                    unlocked_count = max(unlocked_count, 15)
-                if current_points >= 33:
-                    unlocked_count = max(unlocked_count, 16)
-                if current_points >= 36:
-                    unlocked_count = max(unlocked_count, 17)
-                if current_points >= 39:
-                    unlocked_count = max(unlocked_count, 18)
-                if current_points >= 43:
-                    unlocked_count = max(unlocked_count, 19)
-                if current_points >= 47:
-                    unlocked_count = max(unlocked_count, 20)
-                if current_points >= 51:
-                    unlocked_count = max(unlocked_count, 21)
-                if current_points >= 55:
-                    unlocked_count = max(unlocked_count, 22)
-                if current_points >= 59:
-                    unlocked_count = max(unlocked_count, 23)
-                if current_points >= 63:
-                    unlocked_count = max(unlocked_count, 24)
-                if current_points >= 67:
-                    unlocked_count = max(unlocked_count, 25)
-                if current_points >= 77:
-                    unlocked_count = max(unlocked_count, 26)
-                
-                users[uid]['unlocked'] = unlocked_count
-                break
+        c.execute("SELECT * FROM users WHERE code = ?", (ref_code,))
+        referrer = c.fetchone()
+        if referrer:
+            invited_by = referrer['mobile']
+            invited_by_name = referrer['name']
+            new_points = referrer['points'] + 1
+            new_invites = referrer['invites'] + 1
+            
+            # محاسبه قفل‌های جدید
+            unlocked_count = 5
+            if new_points >= 3:
+                unlocked_count = max(unlocked_count, 6)
+            if new_points >= 6:
+                unlocked_count = max(unlocked_count, 7)
+            if new_points >= 9:
+                unlocked_count = max(unlocked_count, 8)
+            if new_points >= 12:
+                unlocked_count = max(unlocked_count, 9)
+            if new_points >= 15:
+                unlocked_count = max(unlocked_count, 10)
+            if new_points >= 18:
+                unlocked_count = max(unlocked_count, 11)
+            if new_points >= 21:
+                unlocked_count = max(unlocked_count, 12)
+            if new_points >= 24:
+                unlocked_count = max(unlocked_count, 13)
+            if new_points >= 27:
+                unlocked_count = max(unlocked_count, 14)
+            if new_points >= 30:
+                unlocked_count = max(unlocked_count, 15)
+            if new_points >= 33:
+                unlocked_count = max(unlocked_count, 16)
+            if new_points >= 36:
+                unlocked_count = max(unlocked_count, 17)
+            if new_points >= 39:
+                unlocked_count = max(unlocked_count, 18)
+            if new_points >= 43:
+                unlocked_count = max(unlocked_count, 19)
+            if new_points >= 47:
+                unlocked_count = max(unlocked_count, 20)
+            if new_points >= 51:
+                unlocked_count = max(unlocked_count, 21)
+            if new_points >= 55:
+                unlocked_count = max(unlocked_count, 22)
+            if new_points >= 59:
+                unlocked_count = max(unlocked_count, 23)
+            if new_points >= 63:
+                unlocked_count = max(unlocked_count, 24)
+            if new_points >= 67:
+                unlocked_count = max(unlocked_count, 25)
+            if new_points >= 77:
+                unlocked_count = max(unlocked_count, 26)
+            
+            c.execute("UPDATE users SET points = ?, unlocked = ?, invites = ? WHERE code = ?", 
+                     (new_points, unlocked_count, new_invites, ref_code))
+            conn.commit()
     
-    users[mobile] = {
-        'name': name,
-        'code': user_code,
-        'points': points,
-        'unlocked': unlocked,
-        'invites': invites,
-        'email': email,
-        'address': address,
-        'postal_code': postal_code,
-        'national_code': national_code,
-        'invited_by': invited_by,
-        'invited_by_name': invited_by_name,
-        'registered_at': '2026-08-26 ' + str(random.randint(10,23)) + ':' + str(random.randint(10,59))
-    }
+    # ذخیره کاربر جدید
+    c.execute('''
+        INSERT INTO users (name, mobile, email, national_code, address, postal_code, code, points, unlocked, invites, invited_by, invited_by_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (name, mobile, email, national_code, address, postal_code, user_code, points, unlocked, invites, invited_by, invited_by_name))
+    conn.commit()
+    conn.close()
     
     session['user_code'] = user_code
     session['name'] = name
     session['mobile'] = mobile
-    session['email'] = email
     session['points'] = points
     session['unlocked'] = unlocked
     session['invites'] = invites
