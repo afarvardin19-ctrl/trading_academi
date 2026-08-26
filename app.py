@@ -1112,3 +1112,47 @@ def logout():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=True)
+
+@app.route('/db')
+def db_viewer():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users ORDER BY id DESC")
+    users = c.fetchall()
+    conn.close()
+    return render_template_string("""
+    <html dir='rtl'>
+    <head><title>دیتابیس</title></head>
+    <body style="font-family:Tahoma;background:#f0f2f5;padding:20px;">
+        <h1>📊 لیست کاربران</h1>
+        <table border="1" style="border-collapse:collapse;width:100%;background:#fff;">
+            <tr><th>ID</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد معرف</th><th>امتیاز</th><th>تاریخ</th></tr>
+            {% for u in users %}
+            <tr><td>{{ u.id }}</td><td>{{ u.name }}</td><td>{{ u.mobile }}</td><td>{{ u.email }}</td><td>{{ u.code }}</td><td>{{ u.points }}</td><td>{{ u.registered_at[:16] }}</td></tr>
+            {% endfor %}
+        </table>
+    </body>
+    </html>
+    """, users=users)
+
+@app.route('/admin')
+def admin():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users ORDER BY id DESC")
+    users = c.fetchall()
+    conn.close()
+    return render_template_string("""
+    <html dir='rtl'>
+    <head><title>پنل مدیریت</title></head>
+    <body style="font-family:Tahoma;background:#f0f2f5;padding:20px;">
+        <h1>🔐 پنل مدیریت</h1>
+        <table border="1" style="border-collapse:collapse;width:100%;background:#fff;">
+            <tr><th>ID</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد معرف</th><th>امتیاز</th><th>دعوت‌ها</th></tr>
+            {% for u in users %}
+            <tr><td>{{ u.id }}</td><td>{{ u.name }}</td><td>{{ u.mobile }}</td><td>{{ u.email }}</td><td>{{ u.code }}</td><td>{{ u.points }}</td><td>{{ u.invites }}</td></tr>
+            {% endfor %}
+        </table>
+    </body>
+    </html>
+    """, users=users)
