@@ -1,38 +1,26 @@
 from flask import Flask, render_template_string, request, session, redirect, url_for
 import random
 import string
-import sqlite3
-from datetime import datetime
+import json
+import os
 
 app = Flask(__name__)
 app.secret_key = 'secret_key_12345'
 
-# ============ دیتابیس ============
-def get_db():
-    conn = sqlite3.connect('users.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+# ============ دیتابیس (فایل JSON) ============
+USERS_FILE = 'users.json'
 
-def init_db():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            mobile TEXT UNIQUE NOT NULL,
-            email TEXT,
-            national_code TEXT,
-            address TEXT,
-            postal_code TEXT,
-            registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.commit()
-    conn.close()
-    print("✅ دیتابیس راه‌اندازی شد!")
+def load_users():
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
 
-init_db()
+def save_users(users):
+    with open(USERS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
+
+users = load_users()
 
 lessons = [
     {"id": 1, "name": "کندل‌شناسی", "free": True},
@@ -74,7 +62,7 @@ def get_invites_needed(lesson_id):
         return 10
     return 0
 
-# ============ HTML سایت اصلی ============
+# ============ HTML ============
 HTML = """
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -691,6 +679,7 @@ def index():
 
 @app.route('/register', methods=['POST'])
 def register():
+    global users
     name = request.form.get('name')
     mobile = request.form.get('mobile')
     national_code = request.form.get('national_code')
@@ -698,13 +687,8 @@ def register():
     address = request.form.get('address', '')
     postal_code = request.form.get('postal_code', '')
     
-    conn = get_db()
-    c = conn.cursor()
-    
-    c.execute("SELECT * FROM users WHERE mobile = ?", (mobile,))
-    existing = c.fetchone()
-    if existing:
-        conn.close()
+    # چک کن قبلاً ثبت‌نام کرده
+    if mobile in users:
         return """
         <div style="text-align:center;padding:60px 20px;font-family:'Vazirmatn',Tahoma;background:#f0f2f5;color:#1a1a2e;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;">
             <div style="font-size:64px;margin-bottom:20px;">⚠️</div>
@@ -713,12 +697,15 @@ def register():
         </div>
         """
     
-    c.execute('''
-        INSERT INTO users (name, mobile, email, national_code, address, postal_code)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (name, mobile, email, national_code, address, postal_code))
-    conn.commit()
-    conn.close()
+    # ذخیره کاربر
+    users[mobile] = {
+        'name': name,
+        'email': email,
+        'national_code': national_code,
+        'address': address,
+        'postal_code': postal_code
+    }
+    save_users(users)
     
     return f"""
     <!DOCTYPE html>
@@ -803,11 +790,6 @@ def register():
 # ============ صفحات دیتابیس و ادمین ============
 @app.route('/db')
 def db_viewer():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT * FROM users ORDER BY id DESC")
-    users = c.fetchall()
-    conn.close()
     return render_template_string("""
     <html dir='rtl'>
     <head>
@@ -831,20 +813,19 @@ def db_viewer():
             <h1>📊 دیتابیس کاربران</h1>
             <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
             <table>
-                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>تاریخ ثبت</th></tr>
-                {% for u in users %}
+                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th></tr>
+                {% for mobile, user in users.items() %}
                 <tr>
-                    <td>{{ u.id }}</td>
-                    <td><strong>{{ u.name }}</strong></td>
-                    <td dir="ltr">{{ u.mobile }}</td>
-                    <td>{{ u.email or '-' }}</td>
-                    <td>{{ u.national_code or '-' }}</td>
-                    <td style="max-width:200px;word-wrap:break-word;">{{ u.address or '-' }}</td>
-                    <td dir="ltr">{{ u.postal_code or '-' }}</td>
-                    <td dir="ltr" style="font-size:12px;color:#5f6368;">{{ u.registered_at[:16] }}</td>
+                    <td>{{ loop.index }}</td>
+                    <td><strong>{{ user.name }}</strong></td>
+                    <td dir="ltr">{{ mobile }}</td>
+                    <td>{{ user.email or '-' }}</td>
+                    <td>{{ user.national_code or '-' }}</td>
+                    <td style="max-width:200px;word-wrap:break-word;">{{ user.address or '-' }}</td>
+                    <td dir="ltr">{{ user.postal_code or '-' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="8" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
+                <tr><td colspan="7" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
                 {% endfor %}
             </table>
             <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
@@ -855,11 +836,6 @@ def db_viewer():
 
 @app.route('/admin')
 def admin():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT * FROM users ORDER BY id DESC")
-    users = c.fetchall()
-    conn.close()
     return render_template_string("""
     <html dir='rtl'>
     <head>
@@ -883,20 +859,19 @@ def admin():
             <h1>🔐 پنل مدیریت</h1>
             <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
             <table>
-                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>تاریخ ثبت</th></tr>
-                {% for u in users %}
+                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th></tr>
+                {% for mobile, user in users.items() %}
                 <tr>
-                    <td>{{ u.id }}</td>
-                    <td><strong>{{ u.name }}</strong></td>
-                    <td dir="ltr">{{ u.mobile }}</td>
-                    <td>{{ u.email or '-' }}</td>
-                    <td>{{ u.national_code or '-' }}</td>
-                    <td style="max-width:200px;word-wrap:break-word;">{{ u.address or '-' }}</td>
-                    <td dir="ltr">{{ u.postal_code or '-' }}</td>
-                    <td dir="ltr" style="font-size:12px;color:#5f6368;">{{ u.registered_at[:16] }}</td>
+                    <td>{{ loop.index }}</td>
+                    <td><strong>{{ user.name }}</strong></td>
+                    <td dir="ltr">{{ mobile }}</td>
+                    <td>{{ user.email or '-' }}</td>
+                    <td>{{ user.national_code or '-' }}</td>
+                    <td style="max-width:200px;word-wrap:break-word;">{{ user.address or '-' }}</td>
+                    <td dir="ltr">{{ user.postal_code or '-' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="8" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
+                <tr><td colspan="7" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
                 {% endfor %}
             </table>
             <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
