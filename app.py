@@ -1,21 +1,16 @@
 from flask import Flask, render_template_string, request, session, redirect, url_for
+import sqlite3
 import random
 import string
-import json
-import os
-import psycopg2
-from psycopg2.extras import RealDictCursor
 from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'secret_key_12345'
 
-# ============ Supabase (PostgreSQL) ============
-DATABASE_URL = "postgresql://postgres:trading_academi@db.beizodqbxsqydjsenjpo.supabase.co:5432/postgres"
-
+# ============ دیتابیس SQLite ============
 def get_db():
-    conn = psycopg2.connect(DATABASE_URL)
-    conn.autocommit = True
+    conn = sqlite3.connect('users.db')
+    conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
@@ -23,7 +18,7 @@ def init_db():
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             mobile TEXT UNIQUE NOT NULL,
             email TEXT,
@@ -31,13 +26,17 @@ def init_db():
             address TEXT,
             postal_code TEXT,
             ref_code TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    conn.commit()
     conn.close()
-    print("✅ دیتابیس Supabase راه‌اندازی شد!")
+    print("✅ دیتابیس SQLite راه‌اندازی شد!")
 
 init_db()
+
+def generate_code():
+    return 'VIP-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 lessons = [
     {"id": 1, "name": "کندل‌شناسی", "free": True},
@@ -709,7 +708,7 @@ def register():
     c = conn.cursor()
     
     # چک کن قبلاً ثبت‌نام کرده
-    c.execute("SELECT * FROM users WHERE mobile = %s", (mobile,))
+    c.execute("SELECT * FROM users WHERE mobile = ?", (mobile,))
     existing = c.fetchone()
     if existing:
         conn.close()
@@ -728,7 +727,7 @@ def register():
     # ذخیره کاربر
     c.execute('''
         INSERT INTO users (name, mobile, email, national_code, address, postal_code, ref_code)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', (name, mobile, email, national_code, address, postal_code, ref_code))
     conn.commit()
     conn.close()
@@ -831,9 +830,6 @@ def register():
     </html>
     """
 
-def generate_code():
-    return 'VIP-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-
 # ============ صفحات دیتابیس و ادمین ============
 @app.route('/db')
 def db_viewer():
@@ -868,14 +864,14 @@ def db_viewer():
                 <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th></tr>
                 {% for user in users %}
                 <tr>
-                    <td>{{ user[0] }}</td>
-                    <td><strong>{{ user[1] }}</strong></td>
-                    <td dir="ltr">{{ user[2] }}</td>
-                    <td>{{ user[3] or '-' }}</td>
-                    <td>{{ user[4] or '-' }}</td>
-                    <td style="max-width:200px;word-wrap:break-word;">{{ user[5] or '-' }}</td>
-                    <td dir="ltr">{{ user[6] or '-' }}</td>
-                    <td><code>{{ user[7] or '-' }}</code></td>
+                    <td>{{ user['id'] }}</td>
+                    <td><strong>{{ user['name'] }}</strong></td>
+                    <td dir="ltr">{{ user['mobile'] }}</td>
+                    <td>{{ user['email'] or '-' }}</td>
+                    <td>{{ user['national_code'] or '-' }}</td>
+                    <td style="max-width:200px;word-wrap:break-word;">{{ user['address'] or '-' }}</td>
+                    <td dir="ltr">{{ user['postal_code'] or '-' }}</td>
+                    <td><code>{{ user['ref_code'] or '-' }}</code></td>
                 </tr>
                 {% else %}
                 <tr><td colspan="8" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
@@ -920,14 +916,14 @@ def admin():
                 <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th></tr>
                 {% for user in users %}
                 <tr>
-                    <td>{{ user[0] }}</td>
-                    <td><strong>{{ user[1] }}</strong></td>
-                    <td dir="ltr">{{ user[2] }}</td>
-                    <td>{{ user[3] or '-' }}</td>
-                    <td>{{ user[4] or '-' }}</td>
-                    <td style="max-width:200px;word-wrap:break-word;">{{ user[5] or '-' }}</td>
-                    <td dir="ltr">{{ user[6] or '-' }}</td>
-                    <td><code>{{ user[7] or '-' }}</code></td>
+                    <td>{{ user['id'] }}</td>
+                    <td><strong>{{ user['name'] }}</strong></td>
+                    <td dir="ltr">{{ user['mobile'] }}</td>
+                    <td>{{ user['email'] or '-' }}</td>
+                    <td>{{ user['national_code'] or '-' }}</td>
+                    <td style="max-width:200px;word-wrap:break-word;">{{ user['address'] or '-' }}</td>
+                    <td dir="ltr">{{ user['postal_code'] or '-' }}</td>
+                    <td><code>{{ user['ref_code'] or '-' }}</code></td>
                 </tr>
                 {% else %}
                 <tr><td colspan="8" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
