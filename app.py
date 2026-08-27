@@ -920,3 +920,19 @@ def delete_user(user_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=True)
+
+@app.route('/db')
+def db():
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM users")
+    users = c.fetchall()
+    conn.close()
+    
+    html = '<h1>📊 دیتابیس کاربران</h1>'
+    html += f'<p>تعداد: {len(users)}</p>'
+    html += '<table border="1"><tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد معرف</th></tr>'
+    for u in users:
+        html += f'<tr><td>{u[0]}</td><td>{u[1]}</td><td>{u[2]}</td><td>{u[3]}</td><td>{u[7]}</td></tr>'
+    html += '</table><br><a href="/">↩ بازگشت</a>'
+    return html
