@@ -1,13 +1,13 @@
 from flask import Flask, render_template_string, request, session, redirect, url_for
-import sqlite3
 import random
 import string
+import sqlite3
 from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'secret_key_12345'
 
-# ============ دیتابیس SQLite ============
+# ============ دیتابیس ============
 def get_db():
     conn = sqlite3.connect('users.db')
     conn.row_factory = sqlite3.Row
@@ -22,22 +22,64 @@ def init_db():
             name TEXT NOT NULL,
             mobile TEXT UNIQUE NOT NULL,
             email TEXT,
-            national_code TEXT,
             address TEXT,
             postal_code TEXT,
-            ref_code TEXT,
+            code TEXT UNIQUE NOT NULL,
+            points INTEGER DEFAULT 0,
+            unlocked INTEGER DEFAULT 5,
+            invites INTEGER DEFAULT 0,
+            invited_by TEXT,
+            invited_by_name TEXT,
             registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     conn.commit()
     conn.close()
-    print("✅ دیتابیس SQLite راه‌اندازی شد!")
 
 init_db()
 
+# ============ کد معرف ============
 def generate_code():
-    return 'VIP-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    chars = string.ascii_uppercase + string.digits
+    chars = ''.join(c for c in chars if c not in 'O0I1')
+    return 'TR-' + ''.join(random.choices(chars, k=10))
 
+def generate_unique_code():
+    conn = get_db()
+    c = conn.cursor()
+    while True:
+        code = generate_code()
+        c.execute("SELECT id FROM users WHERE code = ?", (code,))
+        if not c.fetchone():
+            conn.close()
+            return code
+        conn.close()
+
+def get_user_by_code(code):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE code = ?", (code,))
+    user = c.fetchone()
+    conn.close()
+    return user
+
+def get_user_by_mobile(mobile):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE mobile = ?", (mobile,))
+    user = c.fetchone()
+    conn.close()
+    return user
+
+def update_user_points(mobile, points, unlocked, invites):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("UPDATE users SET points = ?, unlocked = ?, invites = ? WHERE mobile = ?", 
+              (points, unlocked, invites, mobile))
+    conn.commit()
+    conn.close()
+
+# ============ جلسات ============
 lessons = [
     {"id": 1, "name": "کندل‌شناسی", "free": True},
     {"id": 2, "name": "حمایت و مقاومت", "free": True},
@@ -67,18 +109,7 @@ lessons = [
     {"id": 26, "name": "🎯 سیگنال‌گیری حرفه‌ای", "free": False, "special": True},
 ]
 
-def get_invites_needed(lesson_id):
-    if lesson_id <= 5:
-        return 0
-    elif 6 <= lesson_id <= 18:
-        return 3
-    elif 19 <= lesson_id <= 25:
-        return 4
-    elif lesson_id == 26:
-        return 10
-    return 0
-
-# ============ HTML ============
+# ============ HTML کامل (همان قبلی با تغییرات) ============
 HTML = """
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -111,25 +142,10 @@ HTML = """
             flex-wrap: wrap;
             gap: 15px;
         }
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .logo i {
-            font-size: 32px;
-            color: #1a73e8;
-        }
-        .logo h1 {
-            font-size: 22px;
-            font-weight: 800;
-            color: #1a1a2e;
-        }
-        .logo h1 span {
-            font-size: 12px;
-            color: #5f6368;
-            font-weight: 400;
-        }
+        .logo { display: flex; align-items: center; gap: 12px; }
+        .logo i { font-size: 32px; color: #1a73e8; }
+        .logo h1 { font-size: 22px; font-weight: 800; color: #1a1a2e; }
+        .logo h1 span { font-size: 12px; color: #5f6368; font-weight: 400; }
         .header-badge {
             background: #e8f0fe;
             border: 1px solid #d2e3fc;
@@ -141,12 +157,8 @@ HTML = """
             align-items: center;
             gap: 8px;
         }
-        .header-badge a {
-            color: #1a73e8;
-            text-decoration: none;
-        }
+        .header-badge a { color: #1a73e8; text-decoration: none; }
         .container { max-width: 1200px; margin: 0 auto; }
-        
         .hero-banner {
             background: linear-gradient(135deg, #ffffff, #f8f9fa);
             border: 1px solid rgba(0,0,0,0.06);
@@ -160,19 +172,9 @@ HTML = """
             gap: 25px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.03);
         }
-        .hero-text h2 {
-            font-size: 28px;
-            font-weight: 800;
-            margin-bottom: 8px;
-            color: #1a1a2e;
-        }
+        .hero-text h2 { font-size: 28px; font-weight: 800; margin-bottom: 8px; color: #1a1a2e; }
         .hero-text h2 i { color: #1a73e8; margin-left: 10px; }
-        .hero-text p {
-            color: #5f6368;
-            font-size: 14px;
-            max-width: 450px;
-            line-height: 1.8;
-        }
+        .hero-text p { color: #5f6368; font-size: 14px; max-width: 450px; line-height: 1.8; }
         .hero-btn {
             background: linear-gradient(135deg, #1a73e8, #1557b0);
             color: #fff;
@@ -188,10 +190,7 @@ HTML = """
             align-items: center;
             gap: 10px;
         }
-        .hero-btn:hover {
-            transform: translateY(-3px) scale(1.02);
-            box-shadow: 0 12px 40px rgba(26,115,232,0.25);
-        }
+        .hero-btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 12px 40px rgba(26,115,232,0.25); }
         .section-title {
             font-size: 20px;
             font-weight: 700;
@@ -202,16 +201,8 @@ HTML = """
             color: #1a1a2e;
         }
         .section-title i { color: #1a73e8; }
-        .section-title .line {
-            flex: 1;
-            height: 1px;
-            background: linear-gradient(to left, rgba(0,0,0,0.08), transparent);
-        }
-        .section-title .count {
-            font-size: 12px;
-            color: #5f6368;
-            font-weight: 400;
-        }
+        .section-title .line { flex: 1; height: 1px; background: linear-gradient(to left, rgba(0,0,0,0.08), transparent); }
+        .section-title .count { font-size: 12px; color: #5f6368; font-weight: 400; }
         .lessons-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -230,52 +221,20 @@ HTML = """
             box-shadow: 0 2px 8px rgba(0,0,0,0.02);
             cursor: pointer;
         }
-        .lesson-card:hover {
-            transform: translateY(-3px);
-            border-color: rgba(26,115,232,0.15);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.06);
-        }
-        .lesson-card.special {
-            border-color: #e37400;
-            background: #fef7e0;
-        }
-        .lesson-card .info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .lesson-card .num {
-            font-size: 12px;
-            font-weight: 700;
-            color: #9aa0a6;
-            min-width: 30px;
-        }
-        .lesson-card .name {
-            font-size: 14px;
-            font-weight: 500;
-            color: #1a1a2e;
-        }
+        .lesson-card:hover { transform: translateY(-3px); border-color: rgba(26,115,232,0.15); box-shadow: 0 8px 25px rgba(0,0,0,0.06); }
+        .lesson-card.special { border-color: #e37400; background: #fef7e0; }
+        .lesson-card .info { display: flex; align-items: center; gap: 12px; }
+        .lesson-card .num { font-size: 12px; font-weight: 700; color: #9aa0a6; min-width: 30px; }
+        .lesson-card .name { font-size: 14px; font-weight: 500; color: #1a1a2e; }
         .lesson-card .badge {
             font-size: 10px;
             padding: 3px 12px;
             border-radius: 30px;
             font-weight: 700;
         }
-        .lesson-card .badge.free {
-            background: #e6f4ea;
-            color: #0f9d58;
-        }
-        .lesson-card .badge.locked {
-            background: #fce8e6;
-            color: #ea4335;
-        }
-        .lesson-card .badge .invite-info {
-            font-size: 9px;
-            display: block;
-            color: #5f6368;
-            font-weight: 400;
-        }
-
+        .lesson-card .badge.free { background: #e6f4ea; color: #0f9d58; }
+        .lesson-card .badge.locked { background: #fce8e6; color: #ea4335; }
+        .lesson-card .badge.register { background: #e8f0fe; color: #1a73e8; }
         .teachers-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -291,10 +250,7 @@ HTML = """
             transition: 0.3s;
             box-shadow: 0 2px 10px rgba(0,0,0,0.03);
         }
-        .teacher-card:hover {
-            box-shadow: 0 8px 30px rgba(0,0,0,0.06);
-            border-color: rgba(26,115,232,0.15);
-        }
+        .teacher-card:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.06); border-color: rgba(26,115,232,0.15); }
         .teacher-avatar {
             width: 70px;
             height: 70px;
@@ -308,15 +264,8 @@ HTML = """
             color: #1a73e8;
             border: 2px solid #d2e3fc;
         }
-        .teacher-card h4 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1a1a2e;
-        }
-        .teacher-card p {
-            font-size: 11px;
-            color: #5f6368;
-        }
+        .teacher-card h4 { font-size: 14px; font-weight: 600; color: #1a1a2e; }
+        .teacher-card p { font-size: 11px; color: #5f6368; }
         .form-section {
             background: #ffffff;
             border: 1px solid rgba(0,0,0,0.06);
@@ -328,32 +277,12 @@ HTML = """
             align-items: center;
             box-shadow: 0 4px 20px rgba(0,0,0,0.03);
         }
-        .form-text h3 {
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 6px;
-            color: #1a1a2e;
-        }
+        .form-text h3 { font-size: 20px; font-weight: 700; margin-bottom: 6px; color: #1a1a2e; }
         .form-text h3 i { color: #1a73e8; }
-        .form-text p {
-            color: #5f6368;
-            font-size: 13px;
-            line-height: 1.8;
-        }
-        .form-text .points {
-            margin-top: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .form-text .points span {
-            font-size: 13px;
-            color: #1a1a2e;
-        }
-        .form-text .points i {
-            color: #0f9d58;
-            margin-left: 8px;
-        }
+        .form-text p { color: #5f6368; font-size: 13px; line-height: 1.8; }
+        .form-text .points { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+        .form-text .points span { font-size: 13px; color: #1a1a2e; }
+        .form-text .points i { color: #0f9d58; margin-left: 8px; }
         .form-box input {
             width: 100%;
             padding: 14px 18px;
@@ -367,10 +296,7 @@ HTML = """
             outline: none;
             transition: 0.3s;
         }
-        .form-box input:focus {
-            border-color: #1a73e8;
-            box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
-        }
+        .form-box input:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
         .form-box input::placeholder { color: #9aa0a6; }
         .form-box .btn-gold {
             width: 100%;
@@ -385,11 +311,7 @@ HTML = """
             cursor: pointer;
             transition: 0.3s;
         }
-        .form-box .btn-gold:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(26,115,232,0.2);
-        }
-
+        .form-box .btn-gold:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(26,115,232,0.2); }
         .footer {
             margin-top: 40px;
             text-align: center;
@@ -412,6 +334,18 @@ HTML = """
             border-radius: 30px;
             transition: width 0.5s;
         }
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #ea4335;
+            font-family: inherit;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .logout-btn:hover { text-decoration: underline; }
         .modal {
             display: none;
             position: fixed;
@@ -425,9 +359,7 @@ HTML = """
             justify-content: center;
             align-items: center;
         }
-        .modal.show {
-            display: flex;
-        }
+        .modal.show { display: flex; }
         .modal-content {
             background: #ffffff;
             border-radius: 24px;
@@ -442,22 +374,9 @@ HTML = """
             from { transform: scale(0.8); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
         }
-        .modal-content .icon {
-            font-size: 56px;
-            margin-bottom: 16px;
-        }
-        .modal-content h3 {
-            font-size: 20px;
-            font-weight: 700;
-            color: #1a1a2e;
-            margin-bottom: 8px;
-        }
-        .modal-content p {
-            color: #5f6368;
-            font-size: 14px;
-            line-height: 1.8;
-            margin-bottom: 20px;
-        }
+        .modal-content .icon { font-size: 56px; margin-bottom: 16px; }
+        .modal-content h3 { font-size: 20px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+        .modal-content p { color: #5f6368; font-size: 14px; line-height: 1.8; margin-bottom: 20px; }
         .modal-content .btn-modal {
             background: linear-gradient(135deg, #1a73e8, #1557b0);
             color: #fff;
@@ -470,19 +389,9 @@ HTML = """
             cursor: pointer;
             transition: 0.3s;
         }
-        .modal-content .btn-modal:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(26,115,232,0.3);
-        }
-        .modal-content .btn-modal.secondary {
-            background: #e8f0fe;
-            color: #1a73e8;
-            margin-right: 10px;
-        }
-        .modal-content .btn-modal.secondary:hover {
-            background: #d2e3fc;
-        }
-
+        .modal-content .btn-modal:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(26,115,232,0.3); }
+        .modal-content .btn-modal.secondary { background: #e8f0fe; color: #1a73e8; margin-right: 10px; }
+        .modal-content .btn-modal.secondary:hover { background: #d2e3fc; }
         .toast {
             position: fixed;
             bottom: 30px;
@@ -500,26 +409,20 @@ HTML = """
             pointer-events: none;
             box-shadow: 0 8px 30px rgba(0,0,0,0.3);
         }
-        .toast.show {
-            opacity: 1;
-            pointer-events: auto;
-        }
+        .toast.show { opacity: 1; pointer-events: auto; }
 
-        .register-message {
-            text-align: center;
-            background: linear-gradient(135deg, #e8f0fe, #d2e3fc);
-            padding: 14px 20px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            color: #1a73e8;
-            font-weight: 700;
-            font-size: 16px;
-            border: 1px solid #b7d1f5;
+        /* پنل ادمین */
+        .admin-link {
+            background: #fef7e0;
+            border: 1px solid #ffd700;
+            padding: 6px 14px;
+            border-radius: 30px;
+            font-size: 12px;
+            color: #e37400;
+            text-decoration: none;
+            transition: 0.3s;
         }
-        .register-message i {
-            margin-left: 10px;
-            font-size: 18px;
-        }
+        .admin-link:hover { background: #ffd700; color: #1a1a2e; }
 
         @media (max-width: 768px) {
             .hero-banner { padding: 25px; flex-direction: column; text-align: center; }
@@ -527,7 +430,6 @@ HTML = """
             .form-section { grid-template-columns: 1fr; padding: 25px; }
             .header { flex-direction: column; text-align: center; }
             .lessons-grid { grid-template-columns: 1fr; }
-            .modal-content { padding: 30px 25px; }
         }
     </style>
 </head>
@@ -539,8 +441,8 @@ HTML = """
         <div class="modal-content">
             <div class="icon">🔒</div>
             <h3>برای دسترسی ثبت‌نام کنید</h3>
-            <p>برای مشاهده این جلسه و تمام جلسات آموزشی، ابتدا باید ثبت‌نام کنید.<br>
-            <span style="color:#0f9d58;font-weight:600;">با ثبت‌نام، ۵ جلسه اول برات باز میشه!</span></p>
+            <p>برای مشاهده ویدیوهای آموزشی و استفاده از تمام امکانات، ابتدا ثبت‌نام خود را تکمیل کنید.<br>
+            <span style="color:#0f9d58;font-weight:600;">پس از ثبت‌نام، ۵ جلسه اول برای شما باز خواهد شد.</span></p>
             <div>
                 <button class="btn-modal" onclick="document.getElementById('registerModal').classList.remove('show'); document.getElementById('register').scrollIntoView();">
                     <i class="fas fa-user-plus"></i> ثبت‌نام
@@ -560,7 +462,16 @@ HTML = """
             </div>
         </div>
         <div class="header-badge">
-            <i class="fas fa-graduation-cap"></i> ۲۶ جلسه تخصصی
+            {% if session.get('user_code') %}
+                <i class="fas fa-user-circle"></i>
+                <a href="#panel">{{ session.get('name', 'کاربر') }}</a>
+                <form action="/logout" method="post" style="display:inline;">
+                    <button type="submit" class="logout-btn"><i class="fas fa-sign-out-alt"></i> خروج</button>
+                </form>
+            {% else %}
+                <i class="fas fa-graduation-cap"></i> ۲۶ جلسه تخصصی
+            {% endif %}
+            <a href="/admin" class="admin-link"><i class="fas fa-user-shield"></i> مدیریت</a>
         </div>
     </div>
 
@@ -571,9 +482,15 @@ HTML = """
                 <h2><i class="fas fa-crown"></i> ۲۶ جلسه تخصصی بازار مالی</h2>
                 <p>از کندل‌شناسی تا سیگنال‌گیری حرفه‌ای، با اساتید برتر ایران.</p>
             </div>
+            {% if not session.get('user_code') %}
             <button class="hero-btn" onclick="document.getElementById('register').scrollIntoView()">
                 <i class="fas fa-play-circle"></i> شروع رایگان
             </button>
+            {% else %}
+            <button class="hero-btn" onclick="document.getElementById('register').scrollIntoView()">
+                <i class="fas fa-user-plus"></i> دعوت دوستان
+            </button>
+            {% endif %}
         </div>
 
         <div class="section-title">
@@ -582,30 +499,41 @@ HTML = """
             <span class="count">{{ lessons|length }} جلسه</span>
         </div>
 
-        <div class="register-message">
-            <i class="fas fa-info-circle"></i> ثبت‌نام کنید و به ۵ جلسه رایگان دسترسی پیدا کنید
-        </div>
-
+        {% set unlocked = session.get('unlocked', 5) if session.get('user_code') else 0 %}
         <div style="font-size:13px;color:#5f6368;margin-bottom:8px;">
             <i class="fas fa-unlock" style="color:#0f9d58;"></i> 
-            ۰ از {{ lessons|length }} جلسه باز شده
+            {% if session.get('user_code') %}
+                {{ unlocked }} از {{ lessons|length }} جلسه باز شده
+            {% else %}
+                برای مشاهده ویدیوهای آموزشی، <a href="#register" style="color:#1a73e8;font-weight:600;">ثبت‌نام</a> کنید
+            {% endif %}
         </div>
         <div class="progress-bar">
-            <div class="fill" style="width: 0%;"></div>
+            <div class="fill" style="width: {{ (unlocked / lessons|length * 100)|round if session.get('user_code') else 0 }}%;"></div>
         </div>
 
         <div class="lessons-grid">
             {% for lesson in lessons %}
-                <div class="lesson-card {% if lesson.special %}special{% endif %}">
+                <div class="lesson-card {% if lesson.special %}special{% endif %}" 
+                     onclick="{% if not session.get('user_code') %}document.getElementById('registerModal').classList.add('show');{% endif %}">
                     <div class="info">
                         <span class="num">جلسه {{ lesson.id }}</span>
                         <span class="name">{{ lesson.name }}</span>
                     </div>
-                    {% if lesson.free %}
-                        <span class="badge free"><i class="fas fa-unlock"></i> رایگان</span>
+                    {% if session.get('user_code') %}
+                        {% if lesson.free or lesson.id <= unlocked %}
+                            <span class="badge free"><i class="fas fa-unlock"></i> باز</span>
+                        {% elif lesson.special and unlocked >= 26 %}
+                            <span class="badge free"><i class="fas fa-unlock"></i> باز</span>
+                        {% else %}
+                            <span class="badge locked"><i class="fas fa-lock"></i> قفل</span>
+                        {% endif %}
                     {% else %}
-                        {% set needed = get_invites_needed(lesson.id) %}
-                        <span class="badge locked"><i class="fas fa-lock"></i> قفل <span class="invite-info">{{ needed }} دعوت</span></span>
+                        {% if lesson.free %}
+                            <span class="badge register"><i class="fas fa-user-plus"></i> ثبت‌نام</span>
+                        {% else %}
+                            <span class="badge locked"><i class="fas fa-lock"></i> قفل</span>
+                        {% endif %}
                     {% endif %}
                 </div>
             {% endfor %}
@@ -641,24 +569,40 @@ HTML = """
 
         <div class="form-section" id="register">
             <div class="form-text">
-                <h3><i class="fas fa-gift"></i> ثبت‌نام کنید و ۵ جلسه هدیه بگیرید!</h3>
-                <p>همین الان ثبت‌نام کنید و به ۵ جلسه اول دوره دسترسی پیدا کنید.</p>
+                <h3><i class="fas fa-gift"></i> {% if session.get('user_code') %}دوستان خود را دعوت کنید!{% else %}ثبت‌نام کنید و ۵ جلسه آموزشی را ببینید!{% endif %}</h3>
+                <p>{% if session.get('user_code') %}هر دعوت = ۱ امتیاز | هر قفل = ۷ امتیاز | جلسه آخر = ۱۲ امتیاز{% else %}همین الان ثبت‌نام کنید و به ۵ جلسه اول دوره دسترسی پیدا کنید.{% endif %}</p>
                 <div class="points">
-                    <span><i class="fas fa-check-circle"></i> ۵ جلسه آموزشی با ثبت‌نام</span>
-                    <span><i class="fas fa-check-circle"></i> دریافت مدرک معتبر</span>
-                    <span><i class="fas fa-check-circle"></i> بدون نیاز به پرداخت</span>
+                    {% if session.get('user_code') %}
+                        <span><i class="fas fa-check-circle"></i> هر دعوت = ۱ امتیاز</span>
+                        <span><i class="fas fa-check-circle"></i> هر قفل = ۷ امتیاز</span>
+                        <span><i class="fas fa-check-circle"></i> جلسه آخر = ۱۲ امتیاز</span>
+                    {% else %}
+                        <span><i class="fas fa-check-circle"></i> ۵ جلسه آموزشی با ثبت‌نام</span>
+                        <span><i class="fas fa-check-circle"></i> دریافت مدرک معتبر</span>
+                        <span><i class="fas fa-check-circle"></i> بدون نیاز به پرداخت</span>
+                    {% endif %}
                 </div>
+                {% if session.get('user_code') %}
+                <div style="margin-top:12px;background:#e6f4ea;border-radius:10px;padding:12px 16px;border:1px solid #b7e1cd;">
+                    <span style="color:#0f9d58;font-size:13px;">
+                        <i class="fas fa-check-circle"></i> امتیاز شما: {{ session.get('points', 0) }}
+                        &nbsp;|&nbsp; <i class="fas fa-user-plus"></i> {{ session.get('invites', 0) }} دعوت
+                        &nbsp;|&nbsp; <i class="fas fa-unlock"></i> {{ session.get('unlocked', 5) }} جلسه باز
+                    </span>
+                </div>
+                {% endif %}
             </div>
             <div class="form-box">
                 <form action="/register" method="post" id="registerForm">
                     <input type="text" name="name" placeholder="👤 نام و نام خانوادگی" required>
                     <input type="text" name="mobile" placeholder="📞 شماره موبایل" required>
-                    <input type="text" name="national_code" placeholder="🪪 کد ملی" required>
                     <input type="email" name="email" placeholder="📧 ایمیل" required>
                     <input type="text" name="address" placeholder="🏠 آدرس منزل">
                     <input type="text" name="postal_code" placeholder="📮 کد پستی">
                     <input type="text" name="ref_code" placeholder="🔑 کد معرف (اگر دارید)">
-                    <button type="submit" class="btn-gold">ثبت‌نام و مشاهده دوره</button>
+                    <button type="submit" class="btn-gold">
+                        <i class="fas fa-rocket"></i> {% if session.get('user_code') %}ثبت‌نام مجدد{% else %}ثبت‌نام و مشاهده دوره{% endif %}
+                    </button>
                 </form>
             </div>
         </div>
@@ -689,200 +633,272 @@ HTML = """
 </html>
 """
 
+# ============ ADMIN HTML ============
+ADMIN_HTML = """
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل مدیریت | آکادمی ترید</title>
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Vazirmatn', Tahoma, sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 20px 30px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+        }
+        .header h1 { font-size: 24px; font-weight: 800; }
+        .header h1 i { color: #1a73e8; }
+        .header .stats { display: flex; gap: 20px; font-size: 14px; flex-wrap: wrap; }
+        .header .stats span { background: #e8f0fe; padding: 6px 16px; border-radius: 30px; }
+        .card {
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 25px 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+            overflow-x: auto;
+        }
+        .card h2 { font-size: 18px; margin-bottom: 16px; }
+        .card h2 i { color: #1a73e8; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th {
+            background: #f8f9fa;
+            padding: 12px 14px;
+            text-align: right;
+            font-weight: 700;
+            border-bottom: 2px solid #e8edf2;
+            white-space: nowrap;
+        }
+        td { padding: 10px 14px; border-bottom: 1px solid #eef2f7; vertical-align: middle; }
+        tr:hover { background: #f8faff; }
+        .badge {
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 30px;
+            font-weight: 600;
+        }
+        .badge.green { background: #e6f4ea; color: #0f9d58; }
+        .badge.blue { background: #e8f0fe; color: #1a73e8; }
+        .badge.gold { background: #fef7e0; color: #e37400; }
+        .badge.red { background: #fce8e6; color: #ea4335; }
+        .code-mono {
+            font-family: monospace;
+            background: #f1f3f4;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        .empty { text-align: center; color: #9aa0a6; padding: 40px; }
+        .btn {
+            background: #1a73e8;
+            color: #fff;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 30px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .btn:hover { background: #1557b0; }
+        .btn.danger { background: #ea4335; }
+        .btn.danger:hover { background: #c62828; }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .search-box input {
+            padding: 10px 16px;
+            border: 1px solid #dadce0;
+            border-radius: 14px;
+            font-size: 14px;
+            font-family: inherit;
+            flex: 1;
+            min-width: 200px;
+            outline: none;
+        }
+        .search-box input:focus { border-color: #1a73e8; }
+        .back-link {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+        .back-link:hover { text-decoration: underline; }
+        @media (max-width: 768px) {
+            .header { flex-direction: column; text-align: center; }
+            table { font-size: 11px; }
+            th, td { padding: 6px 8px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1><i class="fas fa-user-shield"></i> پنل مدیریت</h1>
+        <div class="stats">
+            <span><i class="fas fa-users"></i> {{ users|length }} کاربر</span>
+            <span><i class="fas fa-star"></i> کل امتیازات: {{ total_points }}</span>
+            <span><a href="/" class="back-link"><i class="fas fa-arrow-left"></i> بازگشت به سایت</a></span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2><i class="fas fa-list"></i> لیست کاربران</h2>
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="🔍 جستجو در نام، موبایل، ایمیل..." onkeyup="searchTable()">
+        </div>
+        <div style="overflow-x:auto;">
+            <table id="userTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>نام</th>
+                        <th>موبایل</th>
+                        <th>ایمیل</th>
+                        <th>کد معرف</th>
+                        <th>امتیاز</th>
+                        <th>جلسات باز</th>
+                        <th>دعوت‌ها</th>
+                        <th>تاریخ ثبت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td><strong>{{ user.name }}</strong></td>
+                        <td dir="ltr">{{ user.mobile }}</td>
+                        <td>{{ user.email or '-' }}</td>
+                        <td><span class="code-mono">{{ user.code }}</span></td>
+                        <td><span class="badge gold">{{ user.points }}</span></td>
+                        <td><span class="badge green">{{ user.unlocked }}</span></td>
+                        <td>{{ user.invites }}</td>
+                        <td dir="ltr" style="font-size:11px;color:#5f6368;">{{ user.registered_at[:16] }}</td>
+                        <td>
+                            <form action="/admin/delete/{{ user.id }}" method="post" style="display:inline;" onsubmit="return confirm('حذف این کاربر؟')">
+                                <button class="btn danger" style="padding:4px 10px;font-size:11px;"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="10" class="empty">❌ هیچ کاربری یافت نشد</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function searchTable() {
+    const input = document.getElementById('searchInput');
+    const filter = input.value.toLowerCase();
+    const table = document.getElementById('userTable');
+    const rows = table.getElementsByTagName('tr');
+    for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i].getElementsByTagName('td');
+        let found = false;
+        for (let j = 0; j < cells.length - 1; j++) {
+            if (cells[j]) {
+                const text = cells[j].textContent.toLowerCase();
+                if (text.includes(filter)) { found = true; break; }
+            }
+        }
+        rows[i].style.display = found ? '' : 'none';
+    }
+}
+</script>
+
+</body>
+</html>
+"""
+
 # ============ روت‌های اصلی ============
 @app.route('/')
 def index():
-    return render_template_string(HTML, lessons=lessons, get_invites_needed=get_invites_needed)
+    return render_template_string(HTML, lessons=lessons)
 
 @app.route('/register', methods=['POST'])
 def register():
     name = request.form.get('name')
     mobile = request.form.get('mobile')
-    national_code = request.form.get('national_code')
     email = request.form.get('email')
     address = request.form.get('address', '')
     postal_code = request.form.get('postal_code', '')
     ref_code = request.form.get('ref_code', '').strip()
     
+    existing = get_user_by_mobile(mobile)
+    if existing:
+        session['user_code'] = existing['code']
+        session['name'] = existing['name']
+        session['mobile'] = existing['mobile']
+        session['points'] = existing['points']
+        session['unlocked'] = existing['unlocked']
+        session['invites'] = existing['invites']
+        return redirect(url_for('index'))
+    
+    user_code = generate_unique_code()
+    points = 0
+    unlocked = 5
+    invites = 0
+    invited_by = None
+    invited_by_name = None
+    
+    if ref_code:
+        referrer = get_user_by_code(ref_code)
+        if referrer:
+            invited_by = referrer['mobile']
+            invited_by_name = referrer['name']
+            new_points = referrer['points'] + 1
+            new_invites = referrer['invites'] + 1
+            new_unlocked = 5 + (new_points // 7)
+            if new_points >= 12:
+                new_unlocked = max(new_unlocked, 26)
+            update_user_points(referrer['mobile'], new_points, new_unlocked, new_invites)
+    
     conn = get_db()
     c = conn.cursor()
-    
-    # چک کن قبلاً ثبت‌نام کرده
-    c.execute("SELECT * FROM users WHERE mobile = ?", (mobile,))
-    existing = c.fetchone()
-    if existing:
-        conn.close()
-        return """
-        <div style="text-align:center;padding:60px 20px;font-family:'Vazirmatn',Tahoma;background:#f0f2f5;color:#1a1a2e;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;">
-            <div style="font-size:64px;margin-bottom:20px;">⚠️</div>
-            <h2 style="color:#ea4335;font-size:26px;">این شماره قبلاً ثبت‌نام کرده!</h2>
-            <a href="/" style="color:#1a73e8;text-decoration:none;margin-top:20px;border:1px solid #1a73e8;padding:10px 30px;border-radius:40px;transition:0.3s;">↩ بازگشت به سایت</a>
-        </div>
-        """
-    
-    # تولید کد معرف
-    if not ref_code:
-        ref_code = generate_code()
-    
-    # ذخیره کاربر
     c.execute('''
-        INSERT INTO users (name, mobile, email, national_code, address, postal_code, ref_code)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (name, mobile, email, national_code, address, postal_code, ref_code))
+        INSERT INTO users (name, mobile, email, address, postal_code, code, points, unlocked, invites, invited_by, invited_by_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (name, mobile, email, address, postal_code, user_code, points, unlocked, invites, invited_by, invited_by_name))
     conn.commit()
     conn.close()
     
-    return f"""
-    <!DOCTYPE html>
-    <html lang="fa" dir="rtl">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ثبت‌نام موفق</title>
-        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-        <style>
-            *{{ margin:0; padding:0; box-sizing:border-box; }}
-            body{{
-                font-family:'Vazirmatn',Tahoma,sans-serif;
-                background:linear-gradient(135deg, #f0f2f5 0%, #e8ecf1 100%);
-                color:#1a1a2e;
-                min-height:100vh;
-                display:flex;
-                justify-content:center;
-                align-items:center;
-                padding:20px;
-            }}
-            .success-box{{
-                background:#ffffff;
-                border-radius:32px;
-                padding:50px 60px;
-                max-width:520px;
-                width:100%;
-                text-align:center;
-                box-shadow:0 20px 60px rgba(0,0,0,0.08);
-                border-top:5px solid #1a73e8;
-            }}
-            .icon{{ font-size:72px; margin-bottom:16px; }}
-            h2{{ color:#1a73e8; font-size:26px; font-weight:800; margin-bottom:8px; }}
-            .sub{{ color:#5f6368; font-size:14px; line-height:2; margin-bottom:20px; }}
-            .box{{
-                background:#e8f0fe;
-                border-radius:16px;
-                padding:16px 20px;
-                margin:16px 0 24px;
-                border-right:4px solid #1a73e8;
-                text-align:right;
-            }}
-            .box p{{ font-size:13px; color:#1a1a2e; line-height:2; }}
-            .box i{{ color:#0f9d58; margin-left:8px; }}
-            .btn{{
-                background:linear-gradient(135deg, #1a73e8, #1557b0);
-                color:#fff;
-                border:none;
-                padding:14px 40px;
-                border-radius:60px;
-                font-size:16px;
-                font-weight:700;
-                font-family:inherit;
-                cursor:pointer;
-                transition:all 0.3s;
-                text-decoration:none;
-                display:inline-block;
-            }}
-            .btn:hover{{
-                transform:translateY(-3px);
-                box-shadow:0 10px 35px rgba(26,115,232,0.3);
-            }}
-            .ref-box{{
-                background:#fef7e0;
-                border-radius:12px;
-                padding:12px 16px;
-                margin:10px 0 16px;
-                border:1px solid #ffd700;
-                text-align:center;
-            }}
-            .ref-box span{{
-                font-size:18px;
-                font-weight:700;
-                color:#e37400;
-                letter-spacing:2px;
-                font-family:monospace;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="success-box">
-            <div class="icon">🎓</div>
-            <h2>ثبت‌نام شما با موفقیت انجام شد</h2>
-            <p class="sub">به خانواده بزرگ آکادمی ترید خوش آمدید.<br>هم‌اکنون می‌توانید ویدیوهای آموزشی را مشاهده کنید.</p>
-            <div class="ref-box">
-                🔑 کد معرف شما: <span>{ref_code}</span>
-            </div>
-            <div class="box">
-                <p><i class="fas fa-unlock"></i> <b>۵ جلسه آموزشی</b> برای شما باز شده است</p>
-                <p><i class="fas fa-certificate"></i> پس از تکمیل دوره، <b>مدرک معتبر</b> دریافت می‌کنید</p>
-                <p><i class="fas fa-user-plus"></i> با دعوت دوستان، جلسات بیشتر را باز کنید</p>
-            </div>
-            <a href="/" class="btn"><i class="fas fa-play-circle"></i> شروع یادگیری</a>
-        </div>
-    </body>
-    </html>
-    """
+    session['user_code'] = user_code
+    session['name'] = name
+    session['mobile'] = mobile
+    session['points'] = points
+    session['unlocked'] = unlocked
+    session['invites'] = invites
+    
+    return redirect(url_for('index'))
 
-# ============ صفحات دیتابیس و ادمین ============
-@app.route('/db')
-def db_viewer():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT * FROM users ORDER BY id DESC")
-    users = c.fetchall()
-    conn.close()
-    return render_template_string("""
-    <html dir='rtl'>
-    <head>
-        <title>دیتابیس کاربران</title>
-        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
-        <style>
-            body{font-family:'Vazirmatn',Tahoma;background:#f0f2f5;padding:20px;}
-            .container{max-width:1200px;margin:0 auto;background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,0.05);}
-            h1{color:#1a73e8;font-size:24px;margin-bottom:20px;}
-            table{width:100%;border-collapse:collapse;font-size:14px;}
-            th{background:#e8f0fe;padding:12px;text-align:right;border-bottom:2px solid #d2e3fc;}
-            td{padding:10px 12px;border-bottom:1px solid #eef2f7;}
-            tr:hover{background:#f8faff;}
-            .badge{background:#e8f0fe;color:#1a73e8;padding:2px 10px;border-radius:30px;font-size:12px;}
-            .back{color:#1a73e8;text-decoration:none;font-weight:600;}
-            .back:hover{text-decoration:underline;}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>📊 دیتابیس کاربران</h1>
-            <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
-            <table>
-                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th></tr>
-                {% for user in users %}
-                <tr>
-                    <td>{{ user['id'] }}</td>
-                    <td><strong>{{ user['name'] }}</strong></td>
-                    <td dir="ltr">{{ user['mobile'] }}</td>
-                    <td>{{ user['email'] or '-' }}</td>
-                    <td>{{ user['national_code'] or '-' }}</td>
-                    <td style="max-width:200px;word-wrap:break-word;">{{ user['address'] or '-' }}</td>
-                    <td dir="ltr">{{ user['postal_code'] or '-' }}</td>
-                    <td><code>{{ user['ref_code'] or '-' }}</code></td>
-                </tr>
-                {% else %}
-                <tr><td colspan="8" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
-                {% endfor %}
-            </table>
-            <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
-        </div>
-    </body>
-    </html>
-    """, users=users)
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
 
+# ============ روت‌های ادمین ============
 @app.route('/admin')
 def admin():
     conn = get_db()
@@ -890,50 +906,17 @@ def admin():
     c.execute("SELECT * FROM users ORDER BY id DESC")
     users = c.fetchall()
     conn.close()
-    return render_template_string("""
-    <html dir='rtl'>
-    <head>
-        <title>پنل مدیریت</title>
-        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
-        <style>
-            body{font-family:'Vazirmatn',Tahoma;background:#f0f2f5;padding:20px;}
-            .container{max-width:1200px;margin:0 auto;background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,0.05);}
-            h1{color:#1a73e8;font-size:24px;margin-bottom:20px;}
-            table{width:100%;border-collapse:collapse;font-size:14px;}
-            th{background:#e8f0fe;padding:12px;text-align:right;border-bottom:2px solid #d2e3fc;}
-            td{padding:10px 12px;border-bottom:1px solid #eef2f7;}
-            tr:hover{background:#f8faff;}
-            .badge{background:#e8f0fe;color:#1a73e8;padding:2px 10px;border-radius:30px;font-size:12px;}
-            .back{color:#1a73e8;text-decoration:none;font-weight:600;}
-            .back:hover{text-decoration:underline;}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>🔐 پنل مدیریت</h1>
-            <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
-            <table>
-                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th></tr>
-                {% for user in users %}
-                <tr>
-                    <td>{{ user['id'] }}</td>
-                    <td><strong>{{ user['name'] }}</strong></td>
-                    <td dir="ltr">{{ user['mobile'] }}</td>
-                    <td>{{ user['email'] or '-' }}</td>
-                    <td>{{ user['national_code'] or '-' }}</td>
-                    <td style="max-width:200px;word-wrap:break-word;">{{ user['address'] or '-' }}</td>
-                    <td dir="ltr">{{ user['postal_code'] or '-' }}</td>
-                    <td><code>{{ user['ref_code'] or '-' }}</code></td>
-                </tr>
-                {% else %}
-                <tr><td colspan="8" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
-                {% endfor %}
-            </table>
-            <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
-        </div>
-    </body>
-    </html>
-    """, users=users)
+    total_points = sum(u['points'] for u in users)
+    return render_template_string(ADMIN_HTML, users=users, total_points=total_points)
+
+@app.route('/admin/delete/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('admin'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000, debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=True)
