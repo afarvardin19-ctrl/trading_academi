@@ -8,7 +8,6 @@ app = Flask(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 TEHRAN_TZ = pytz.timezone('Asia/Tehran')
 
-# ================== صفحه اصلی ==================
 @app.route('/')
 def home():
     now = datetime.now(TEHRAN_TZ)
@@ -21,10 +20,10 @@ def home():
         <input type="email" name="email" placeholder="ایمیل" required><br>
         <button type="submit">ثبت نام</button>
     </form>
-    <a href="/users">👥 کاربران</a>
+    <a href="/users">👥 کاربران</a> |
+    <a href="/db">🗄️ دیتابیس</a>
     '''
 
-# ================== ثبت نام (درست) ==================
 @app.route('/register', methods=['POST'])
 def register():
     try:
@@ -38,8 +37,6 @@ def register():
 
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
-
-        # ساخت جدول (اگه نباشه)
         c.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -49,31 +46,18 @@ def register():
                 created_at TIMESTAMP
             )
         ''')
-
-        # ثبت کاربر
         c.execute('''
             INSERT INTO users (name, mobile, email, created_at)
             VALUES (%s, %s, %s, %s)
         ''', (name, mobile, email, now_tehran))
-
         conn.commit()
         conn.close()
-
         return f'''✅ ثبت نام موفق!
-🕐 زمان ثبت: {now_tehran.strftime("%Y-%m-%d %H:%M:%S")}
+🕐 {now_tehran.strftime("%Y-%m-%d %H:%M:%S")}
 <a href="/users">مشاهده کاربران</a> | <a href="/">خانه</a>'''
-
-    except psycopg2.IntegrityError as e:
-        if 'mobile' in str(e):
-            return '❌ این شماره موبایل قبلاً ثبت شده است', 400
-        if 'email' in str(e):
-            return '❌ این ایمیل قبلاً ثبت شده است', 400
-        return f'❌ خطا: {str(e)}', 400
-
     except Exception as e:
         return f'❌ خطا: {str(e)}', 500
 
-# ================== لیست کاربران ==================
 @app.route('/users')
 def show_users():
     try:
@@ -94,6 +78,29 @@ def show_users():
     except Exception as e:
         return f'❌ خطا: {str(e)}', 500
 
-# ================== اجرا ==================
+# ================== صفحه دیتابیس (DB) ==================
+@app.route('/db')
+def show_db():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        c = conn.cursor()
+        c.execute('SELECT * FROM users ORDER BY id DESC')
+        rows = c.fetchall()
+        conn.close()
+
+        if not rows:
+            return '<h2>📭 دیتابیس خالی است</h2><a href="/">خانه</a>'
+
+        html = '<h2>🗄️ محتوای دیتابیس (users)</h2>'
+        html += '<table border="1" cellpadding="5"><tr>'
+        # ستون‌ها
+        html += '<th>id</th><th>name</th><th>mobile</th><th>email</th><th>created_at</th></tr>'
+        for row in rows:
+            html += f'<tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td><td>{row[3]}</td><td>{row[4]}</td></tr>'
+        html += f'</table><p>🔢 تعداد کل: {len(rows)}</p><a href="/">خانه</a>'
+        return html
+    except Exception as e:
+        return f'❌ خطا: {str(e)}', 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
