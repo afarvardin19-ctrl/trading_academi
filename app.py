@@ -6,10 +6,6 @@ import pytz
 
 app = Flask(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL')
-
-if not DATABASE_URL:
-    raise Exception("DATABASE_URL not set!")
-
 TEHRAN_TZ = pytz.timezone('Asia/Tehran')
 
 @app.route('/')
