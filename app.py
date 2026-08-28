@@ -7,7 +7,6 @@ import pytz
 app = Flask(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-# بررسی کن که DATABASE_URL وجود داره
 if not DATABASE_URL:
     raise Exception("DATABASE_URL not set!")
 
@@ -18,7 +17,7 @@ def home():
     now = datetime.now(TEHRAN_TZ)
     return f'''
     <h2>✅ Trading Academy</h2>
-    <p>⏰ زمان فعلی تهران: {now.strftime("%Y-%m-%d %H:%M:%S")}</p>
+    <p>⏰ {now.strftime("%Y-%m-%d %H:%M:%S")} (تهران)</p>
     <form action="/register" method="POST">
         <input type="text" name="name" placeholder="نام" required><br>
         <input type="text" name="mobile" placeholder="موبایل" required><br>
@@ -58,7 +57,7 @@ def register():
         conn.close()
 
         return f'''✅ ثبت نام موفق!
-🕐 زمان ثبت‌نام (تهران): {now_tehran.strftime("%Y-%m-%d %H:%M:%S")}
+🕐 {now_tehran.strftime("%Y-%m-%d %H:%M:%S")}
 <a href="/users">مشاهده کاربران</a> | <a href="/">خانه</a>'''
 
     except Exception as e:
@@ -76,7 +75,7 @@ def show_users():
         if not rows:
             return '<h2>📭 هیچ کاربری ثبت نشده است</h2><a href="/">خانه</a>'
 
-        html = '<h2>📋 لیست کاربران</h2><table border="1"><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Email</th><th>زمان ثبت (تهران)</th></tr>'
+        html = '<h2>📋 لیست کاربران</h2><table border="1"><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Email</th><th>زمان ثبت</th></tr>'
         for row in rows:
             html += f'<tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td><td>{row[3]}</td><td>{row[4]}</td></tr>'
         html += f'</table><p>🔢 تعداد: {len(rows)}</p><a href="/">خانه</a>'
