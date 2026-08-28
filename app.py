@@ -12,28 +12,96 @@ app.secret_key = 'your-secret-key-here'
 DATABASE_URL = os.environ.get('DATABASE_URL')
 TEHRAN_TZ = pytz.timezone('Asia/Tehran')
 
-# ===== صفحه اصلی =====
+# ===== صفحه اصلی با دوره‌ها و گرافیک =====
 @app.route('/')
 def home():
     return '''
-    <h1 style="text-align:center; color:#2c3e50;">📈 آکادمی ترید</h1>
-    <p style="text-align:center;">۲۶ جلسه تخصصی</p>
-    <p style="text-align:center;">برای دسترسی به جلسات ثبتنام کنید</p>
-    <ul>
-        <li>جلسه 1 کندلشناسی - رایگان</li>
-        <li>جلسه 2 حمایت و مقاومت - رایگان</li>
-        <li>جلسه 3 پرایس اکشن مقدماتی - رایگان</li>
-        <li>جلسه 4 الگوهای کلاسیک - رایگان</li>
-        <li>جلسه 5 ترند و خط روند - رایگان</li>
-        <li>جلسه 6 RSI - قفل 3 دعوت</li>
-        <li>جلسه 7 MACD - قفل 3 دعوت</li>
-        <li>جلسه 26 🎯 سیگنالگیری حرفهای - قفل 10 دعوت</li>
-    </ul>
-    <div style="text-align:center;">
-        <a href="/register">ثبت نام</a> | 
-        <a href="/login">ورود</a> |
-        <a href="/users">کاربران</a>
-    </div>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>آکادمی ترید | ۲۶ جلسه</title>
+        <style>
+            body { font-family: Arial, sans-serif; direction: rtl; background: #f0f2f5; margin: 0; padding: 20px; }
+            .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+            h1 { text-align: center; color: #2c3e50; }
+            .subtitle { text-align: center; color: #7f8c8d; font-size: 18px; }
+            .jalsat { list-style: none; padding: 0; }
+            .jalsat li { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+            .free { color: #27ae60; font-weight: bold; }
+            .lock { color: #e74c3c; font-weight: bold; }
+            .btn { display: inline-block; padding: 10px 20px; background: #3498db; color: white; text-decoration: none; border-radius: 8px; margin: 5px; }
+            .btn:hover { background: #2980b9; }
+            .center { text-align: center; margin: 20px 0; }
+            .teachers { display: flex; justify-content: space-around; flex-wrap: wrap; margin-top: 20px; }
+            .teacher { background: #f8f9fa; padding: 15px; border-radius: 10px; width: 45%; margin: 10px 0; }
+            .teacher h3 { margin: 0; color: #2c3e50; }
+            .teacher p { margin: 5px 0; color: #7f8c8d; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📈 آکادمی ترید | ۲۶ جلسه</h1>
+            <p class="subtitle">۲۶ جلسه تخصصی</p>
+            <p class="subtitle">برای دسترسی به جلسات ثبت‌نام کنید</p>
+            
+            <ul class="jalsat">
+                <li>جلسه 1 کندلشناسی <span class="free">رایگان</span></li>
+                <li>جلسه 2 حمایت و مقاومت <span class="free">رایگان</span></li>
+                <li>جلسه 3 پرایس اکشن مقدماتی <span class="free">رایگان</span></li>
+                <li>جلسه 4 الگوهای کلاسیک <span class="free">رایگان</span></li>
+                <li>جلسه 5 ترند و خط روند <span class="free">رایگان</span></li>
+                <li>جلسه 6 RSI <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 7 MACD <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 8 میانگین متحرک (MA) <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 9 باند بولینگر <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 10 استوکستیک <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 11 فیبوناچی اصلاحی <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 12 فیبوناچی گسترده <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 13 چنگال اندروز <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 14 امواج الیوت <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 15 الگوهای هارمونیک <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 16 وایکوف <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 17 اسمارت مانی <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 18 ICT <span class="lock">قفل 3 دعوت</span></li>
+                <li>جلسه 19 پرایس اکشن پیشرفته <span class="lock">قفل 4 دعوت</span></li>
+                <li>جلسه 20 مدیریت سرمایه <span class="lock">قفل 4 دعوت</span></li>
+                <li>جلسه 21 مدیریت ریسک <span class="lock">قفل 4 دعوت</span></li>
+                <li>جلسه 22 روانشناسی بازار <span class="lock">قفل 4 دعوت</span></li>
+                <li>جلسه 23 استراتژی معاملاتی <span class="lock">قفل 4 دعوت</span></li>
+                <li>جلسه 24 بک تست <span class="lock">قفل 4 دعوت</span></li>
+                <li>جلسه 25 سشنهای معاملاتی <span class="lock">قفل 4 دعوت</span></li>
+                <li>جلسه 26 🎯 سیگنالگیری حرفهای <span class="lock">قفل 10 دعوت</span></li>
+            </ul>
+            
+            <div class="center">
+                <a href="/register" class="btn">📝 ثبت نام</a>
+                <a href="/users" class="btn">👥 کاربران</a>
+            </div>
+
+            <h2 style="text-align:center;">اساتید برتر</h2>
+            <div class="teachers">
+                <div class="teacher">
+                    <h3>محمد کریمی</h3>
+                    <p>تحلیلگر بازار سرمایه</p>
+                </div>
+                <div class="teacher">
+                    <h3>سارا محمدی</h3>
+                    <p>متخصص پرایس اکشن</p>
+                </div>
+                <div class="teacher">
+                    <h3>رضا احمدی</h3>
+                    <p>مدرس ارشد فارکس</p>
+                </div>
+                <div class="teacher">
+                    <h3>نازنین حسینی</h3>
+                    <p>روانشناس بازار</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
     '''
 
 # ===== ثبت نام =====
@@ -119,7 +187,7 @@ def show_users():
     except Exception as e:
         return f'❌ خطا: {str(e)}', 500
 
-# ===== ورود و خروج (ساده) =====
+# ===== ورود و خروج =====
 @app.route('/login')
 def login():
     return '<h2>🔐 صفحه ورود</h2><a href="/">خانه</a>'
