@@ -3,9 +3,22 @@ import random
 import string
 import sqlite3
 from datetime import datetime
+import subprocess
+import os
 
 app = Flask(__name__)
 app.secret_key = 'secret_key_12345'
+
+# ============ بکاپ خودکار ============
+def auto_backup():
+    try:
+        os.chdir('/sdcard/site')
+        subprocess.run(['git', 'add', 'users.db'], check=True, capture_output=True)
+        subprocess.run(['git', 'commit', '-m', f"بکاپ خودکار {datetime.now().strftime('%Y-%m-%d %H:%M')}"], check=True, capture_output=True)
+        subprocess.run(['git', 'push', '-u', 'origin', 'main', '--force'], check=True, capture_output=True)
+        print("✅ بکاپ خودکار انجام شد!")
+    except Exception as e:
+        print(f"⚠️ خطا در بکاپ: {e}")
 
 # ============ دیتابیس ============
 def get_db():
@@ -118,7 +131,6 @@ def get_invites_needed(lesson_id):
         return 10
     return 0
 
-# ============ HTML ============
 HTML = """
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -1106,6 +1118,9 @@ def register():
     conn.commit()
     conn.close()
     
+    # ============ بکاپ خودکار بعد از ثبت‌نام ============
+    auto_backup()
+    
     session['user_code'] = user_code
     session['name'] = name
     session['mobile'] = mobile
@@ -1239,3 +1254,104 @@ def admin():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000, debug=True)
+
+# ============ صفحه موفقیت ============
+@app.route('/success')
+def success():
+    return '''
+    <!DOCTYPE html>
+    <html lang="fa" dir="rtl">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ثبت‌نام موفق</title>
+        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+        <style>
+            * { margin:0; padding:0; box-sizing:border-box; }
+            body {
+                font-family:'Vazirmatn',Tahoma,sans-serif;
+                background:linear-gradient(135deg, #f0f2f5, #e8ecf1);
+                min-height:100vh;
+                display:flex;
+                justify-content:center;
+                align-items:center;
+                padding:20px;
+            }
+            .box {
+                background:#fff;
+                max-width:500px;
+                width:100%;
+                padding:45px 50px;
+                border-radius:28px;
+                text-align:center;
+                box-shadow:0 15px 50px rgba(0,0,0,0.06);
+                border-top:5px solid #1a73e8;
+            }
+            .icon { font-size:72px; margin-bottom:16px; }
+            h2 { color:#1a73e8; font-size:24px; font-weight:800; margin-bottom:6px; }
+            .sub { color:#5f6368; font-size:14px; margin-bottom:16px; line-height:1.8; }
+            .ref-box {
+                background:#fef7e0;
+                border:1px solid #ffd700;
+                border-radius:14px;
+                padding:14px;
+                margin:14px 0 20px;
+            }
+            .ref-box span {
+                font-size:20px;
+                font-weight:700;
+                color:#e37400;
+                letter-spacing:2px;
+                font-family:monospace;
+            }
+            .btn {
+                display:inline-block;
+                background:linear-gradient(135deg, #1a73e8, #1557b0);
+                color:#fff;
+                padding:14px 45px;
+                border-radius:60px;
+                text-decoration:none;
+                font-weight:700;
+                font-family:inherit;
+                transition:0.3s;
+                border:none;
+                cursor:pointer;
+            }
+            .btn:hover {
+                transform:translateY(-3px);
+                box-shadow:0 10px 35px rgba(26,115,232,0.25);
+            }
+            .features {
+                text-align:right;
+                margin:18px 0 22px;
+            }
+            .features p {
+                font-size:13px;
+                color:#1a1a2e;
+                line-height:2.2;
+            }
+            .features i {
+                color:#0f9d58;
+                margin-left:8px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="box">
+            <div class="icon">🎓</div>
+            <h2>ثبت‌نام شما با موفقیت انجام شد</h2>
+            <p class="sub">به خانواده بزرگ آکادمی ترید خوش آمدید.<br>هم‌اکنون می‌توانید ویدیوهای آموزشی را مشاهده کنید.</p>
+            <div class="ref-box">
+                🔑 کد معرف شما: <span>{{ session.get('user_code', '') }}</span>
+            </div>
+            <div class="features">
+                <p><i class="fas fa-check-circle"></i> <b>۵ جلسه آموزشی</b> برای شما باز شده است</p>
+                <p><i class="fas fa-certificate"></i> پس از تکمیل دوره، <b>مدرک معتبر</b> دریافت می‌کنید</p>
+                <p><i class="fas fa-user-plus"></i> با دعوت دوستان، جلسات بیشتر را باز کنید</p>
+            </div>
+            <a href="/" class="btn"><i class="fas fa-play-circle"></i> شروع یادگیری</a>
+        </div>
+    </body>
+    </html>
+    '''
