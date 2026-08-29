@@ -15,7 +15,7 @@ app.secret_key = 'secret_key_12345'
 def auto_backup():
     try:
         os.chdir('/sdcard/site')
-        subprocess.run(['git', 'add', 'users.db'], check=True, capture_output=True)
+        subprocess.run(['git', 'add', 'users_new.db'], check=True, capture_output=True)
         subprocess.run(['git', 'commit', '-m', f"بکاپ خودکار {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"], check=True, capture_output=True)
         subprocess.run(['git', 'push', '-u', 'origin', 'main', '--force'], check=True, capture_output=True)
         print("✅ بکاپ خودکار انجام شد!")
@@ -32,7 +32,7 @@ backup_thread.start()
 
 # ============ دیتابیس ============
 def get_db():
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('users_new.db')
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -43,6 +43,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
+            family TEXT,
             mobile TEXT UNIQUE NOT NULL,
             email TEXT,
             password TEXT,
@@ -60,7 +61,7 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
-    print("✅ دیتابیس راه‌اندازی شد!")
+    print("✅ دیتابیس جدید راه‌اندازی شد!")
 
 init_db()
 
@@ -458,8 +459,9 @@ HTML = """
             </div>
             <div class="form-box">
                 <form action="/register" method="post" id="registerForm">
-                    <input type="text" name="name" placeholder="👤 نام و نام خانوادگی" required>
-                    <input type="text" name="mobile" placeholder="📞 شماره موبایل" required>
+                    <input type="text" name="name" placeholder="👤 نام" required>
+                    <input type="text" name="family" placeholder="👤 نام خانوادگی" required>
+                    <input type="text" name="mobile" placeholder="📞 شماره تماس" required>
                     <input type="email" name="email" placeholder="📧 ایمیل" required>
                     <input type="password" name="password" placeholder="🔑 رمز عبور" required>
                     <input type="text" name="national_code" placeholder="🪪 کد ملی" required>
@@ -555,6 +557,7 @@ def index():
 @app.route('/register', methods=['POST'])
 def register():
     name = request.form.get('name')
+    family = request.form.get('family')
     mobile = request.form.get('mobile')
     email = request.form.get('email')
     password = request.form.get('password')
@@ -645,9 +648,9 @@ def register():
     conn = get_db()
     c = conn.cursor()
     c.execute('''
-        INSERT INTO users (name, mobile, email, password, national_code, address, postal_code, code, points, unlocked, invites, invited_by, invited_by_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (name, mobile, email, password, national_code, address, postal_code, user_code, points, unlocked, invites, invited_by, invited_by_name))
+        INSERT INTO users (name, family, mobile, email, password, national_code, address, postal_code, code, points, unlocked, invites, invited_by, invited_by_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (name, family, mobile, email, password, national_code, address, postal_code, user_code, points, unlocked, invites, invited_by, invited_by_name))
     conn.commit()
     conn.close()
     
@@ -700,11 +703,12 @@ def db_viewer():
             <h1>📊 دیتابیس کاربران</h1>
             <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
             <table>
-                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>رمز عبور</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th><th>امتیاز</th><th>جلسات باز</th><th>دعوت‌ها</th><th>تاریخ ثبت</th></tr>
+                <tr><th>#</th><th>نام</th><th>نام خانوادگی</th><th>موبایل</th><th>ایمیل</th><th>رمز عبور</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th><th>امتیاز</th><th>جلسات باز</th><th>دعوت‌ها</th><th>تاریخ ثبت</th></tr>
                 {% for u in users %}
                 <tr>
                     <td>{{ u['id'] }}</td>
                     <td><strong>{{ u['name'] }}</strong></td>
+                    <td>{{ u['family'] or '-' }}</td>
                     <td dir="ltr">{{ u['mobile'] }}</td>
                     <td>{{ u['email'] or '-' }}</td>
                     <td>{{ u['password'] or '-' }}</td>
@@ -718,7 +722,7 @@ def db_viewer():
                     <td dir="ltr" style="font-size:12px;color:#5f6368;">{{ u['registered_at'][:16] if u['registered_at'] else '---' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="13" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
+                <tr><td colspan="14" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
                 {% endfor %}
             </table>
             <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
@@ -759,11 +763,12 @@ def admin():
             <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
             <p style="color:#5f6368;margin-bottom:16px;">کل امتیازات: <span class="badge">{{ total_points }}</span></p>
             <table>
-                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>رمز عبور</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th><th>امتیاز</th><th>جلسات باز</th><th>دعوت‌ها</th><th>تاریخ ثبت</th></tr>
+                <tr><th>#</th><th>نام</th><th>نام خانوادگی</th><th>موبایل</th><th>ایمیل</th><th>رمز عبور</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th><th>امتیاز</th><th>جلسات باز</th><th>دعوت‌ها</th><th>تاریخ ثبت</th></tr>
                 {% for u in users %}
                 <tr>
                     <td>{{ u['id'] }}</td>
                     <td><strong>{{ u['name'] }}</strong></td>
+                    <td>{{ u['family'] or '-' }}</td>
                     <td dir="ltr">{{ u['mobile'] }}</td>
                     <td>{{ u['email'] or '-' }}</td>
                     <td>{{ u['password'] or '-' }}</td>
@@ -777,7 +782,7 @@ def admin():
                     <td dir="ltr" style="font-size:12px;color:#5f6368;">{{ u['registered_at'][:16] if u['registered_at'] else '---' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="13" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
+                <tr><td colspan="14" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
                 {% endfor %}
             </table>
             <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
