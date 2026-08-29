@@ -26,8 +26,8 @@ def init_db():
             name TEXT NOT NULL,
             family TEXT,
             mobile TEXT UNIQUE NOT NULL,
-            email TEXT,
-            password TEXT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
             national_code TEXT,
             address TEXT,
             postal_code TEXT,
@@ -50,7 +50,6 @@ init_db()
 def send_to_backup(user_data):
     """ارسال اطلاعات کاربر جدید به سایت بکاپ"""
     try:
-        # دریافت همه کاربران از دیتابیس
         conn = get_db()
         c = conn.cursor()
         c.execute("SELECT * FROM users ORDER BY id DESC")
@@ -61,7 +60,6 @@ def send_to_backup(user_data):
         for u in users:
             data.append(dict(u))
         
-        # ارسال به سایت بکاپ
         response = requests.post(
             'http://127.0.0.1:5004/backup',
             json=data,
@@ -577,7 +575,13 @@ def register():
     postal_code = request.form.get('postal_code', '')
     ref_code = request.form.get('ref_code', '').strip()
     
-    existing = get_user_by_mobile(mobile)
+    # بررسی وجود کاربر با موبایل یا ایمیل تکراری
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE mobile = ? OR email = ?", (mobile, email))
+    existing = c.fetchone()
+    conn.close()
+    
     if existing:
         session['user_code'] = existing['code']
         session['name'] = existing['name']
@@ -702,6 +706,7 @@ def api_users():
                 'family': u['family'],
                 'mobile': u['mobile'],
                 'email': u['email'],
+                'password': u['password'],
                 'national_code': u['national_code'],
                 'address': u['address'],
                 'postal_code': u['postal_code'],
