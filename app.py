@@ -11,7 +11,7 @@ import time
 app = Flask(__name__)
 app.secret_key = 'secret_key_12345'
 
-# ============ دیتابیس ============
+# ============ دیتابیس محلی ============
 def get_db():
     conn = sqlite3.connect('users_new.db')
     conn.row_factory = sqlite3.Row
@@ -42,13 +42,12 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
-    print("✅ دیتابیس راه‌اندازی شد!")
+    print("✅ دیتابیس محلی راه‌اندازی شد!")
 
 init_db()
 
-# ============ ارسال به بکاپ ============
-def send_to_backup(user_data):
-    """ارسال اطلاعات کاربر جدید به سایت بکاپ"""
+# ============ ارسال به بکاپ محلی ============
+def send_to_backup():
     try:
         conn = get_db()
         c = conn.cursor()
@@ -56,21 +55,16 @@ def send_to_backup(user_data):
         users = c.fetchall()
         conn.close()
         
+        if not users:
+            return
+        
         data = []
         for u in users:
             data.append(dict(u))
         
-        response = requests.post(
-            'http://127.0.0.1:5004/backup',
-            json=data,
-            timeout=5
-        )
-        if response.status_code == 200:
-            print(f"✅ بکاپ ارسال شد: {len(data)} کاربر")
-        else:
-            print(f"⚠️ خطا در ارسال به بکاپ: {response.status_code}")
-    except Exception as e:
-        print(f"❌ خطا در ارسال به بکاپ: {e}")
+        requests.post('http://127.0.0.1:5007/backup', json=data, timeout=5)
+    except:
+        pass
 
 # ============ کدهای اصلی ============
 def generate_code():
@@ -575,7 +569,6 @@ def register():
     postal_code = request.form.get('postal_code', '')
     ref_code = request.form.get('ref_code', '').strip()
     
-    # بررسی وجود کاربر با موبایل یا ایمیل تکراری
     conn = get_db()
     c = conn.cursor()
     c.execute("SELECT * FROM users WHERE mobile = ? OR email = ?", (mobile, email))
@@ -670,7 +663,7 @@ def register():
     conn.close()
     
     # ============ ارسال به بکاپ بعد از ثبت‌نام ============
-    send_to_backup(None)
+    send_to_backup()
     
     session['user_code'] = user_code
     session['name'] = name
