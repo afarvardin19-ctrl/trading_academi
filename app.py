@@ -3,7 +3,6 @@ import random
 import string
 import sqlite3
 from datetime import datetime
-import subprocess
 import os
 import threading
 import time
@@ -11,24 +10,14 @@ import time
 app = Flask(__name__)
 app.secret_key = 'secret_key_12345'
 
-# ============ بکاپ خودکار ============
+# ============ بکاپ خودکار (غیرفعال برای Render) ============
 def auto_backup():
-    try:
-        os.chdir('/sdcard/site')
-        subprocess.run(['git', 'add', 'users_new.db'], check=True, capture_output=True)
-        subprocess.run(['git', 'commit', '-m', f"بکاپ خودکار {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"], check=True, capture_output=True)
-        subprocess.run(['git', 'push', '-u', 'origin', 'main', '--force'], check=True, capture_output=True)
-        print("✅ بکاپ خودکار انجام شد!")
-    except Exception as e:
-        print(f"⚠️ خطا در بکاپ: {e}")
+    # غیرفعال برای Render
+    pass
 
 def backup_loop():
-    while True:
-        auto_backup()
-        time.sleep(60)
-
-backup_thread = threading.Thread(target=backup_loop, daemon=True)
-backup_thread.start()
+    # غیرفعال برای Render
+    pass
 
 # ============ دیتابیس ============
 def get_db():
@@ -653,8 +642,6 @@ def register():
     ''', (name, family, mobile, email, password, national_code, address, postal_code, user_code, points, unlocked, invites, invited_by, invited_by_name))
     conn.commit()
     conn.close()
-    
-    auto_backup()
     
     session['user_code'] = user_code
     session['name'] = name
