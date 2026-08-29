@@ -715,3 +715,81 @@ def api_users():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000, debug=True)
+
+# ============ نمایش آخرین بکاپ ============
+@app.route('/backup-viewer')
+def backup_viewer():
+    import json
+    try:
+        with open('/sdcard/site/backups/latest_backup.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        if not data:
+            return "<h2>📭 بکاپی وجود ندارد</h2><a href='/'>بازگشت</a>"
+        
+        html = '''
+        <!DOCTYPE html>
+        <html dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>📦 بکاپ دیتابیس</title>
+            <style>
+                body { font-family: Tahoma; background: #f0f4f8; padding: 20px; direction: rtl; }
+                .container { max-width: 1400px; margin: auto; background: white; padding: 20px; border-radius: 16px; overflow-x: auto; }
+                h1 { color: #1a73e8; }
+                table { width: 100%; border-collapse: collapse; font-size: 14px; }
+                th { background: #e8f0fe; padding: 10px; text-align: center; border-bottom: 2px solid #d2e3fc; white-space: nowrap; }
+                td { padding: 8px; text-align: center; border-bottom: 1px solid #eef2f7; }
+                tr:hover { background: #f8faff; }
+                .badge { background: #1a73e8; color: white; padding: 2px 12px; border-radius: 30px; }
+                .ltr { direction: ltr; text-align: center; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>📦 بکاپ دیتابیس</h1>
+                <p>تعداد کاربران: <span class="badge">''' + str(len(data)) + '''</span></p>
+                <p><small>⏰ آخرین بروزرسانی: ''' + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + '''</small></p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>نام</th>
+                            <th>نام خانوادگی</th>
+                            <th>موبایل</th>
+                            <th>ایمیل</th>
+                            <th>کد ملی</th>
+                            <th>آدرس</th>
+                            <th>کد پستی</th>
+                            <th>کد معرف</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        '''
+        for i, u in enumerate(data, 1):
+            html += f'''
+                <tr>
+                    <td>{i}</td>
+                    <td><strong>{u.get('name', '-')}</strong></td>
+                    <td>{u.get('family', '-')}</td>
+                    <td class="ltr">{u.get('mobile', '-')}</td>
+                    <td>{u.get('email', '-')}</td>
+                    <td>{u.get('national_code', '-')}</td>
+                    <td>{u.get('address', '-')}</td>
+                    <td>{u.get('postal_code', '-')}</td>
+                    <td>{u.get('code', '-')}</td>
+                </tr>
+            '''
+        
+        html += '''
+                    </tbody>
+                </table>
+                <a href="/" style="display:inline-block;margin-top:15px;color:#1a73e8;">↩ بازگشت به خانه</a>
+            </div>
+        </body>
+        </html>
+        '''
+        return html
+    except Exception as e:
+        return f"<h2>❌ خطا در خواندن بکاپ: {str(e)}</h2><a href='/'>بازگشت</a>"
