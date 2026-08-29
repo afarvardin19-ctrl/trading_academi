@@ -5,6 +5,8 @@ import sqlite3
 from datetime import datetime
 import subprocess
 import os
+import threading
+import time
 
 app = Flask(__name__)
 app.secret_key = 'secret_key_12345'
@@ -14,11 +16,19 @@ def auto_backup():
     try:
         os.chdir('/sdcard/site')
         subprocess.run(['git', 'add', 'users.db'], check=True, capture_output=True)
-        subprocess.run(['git', 'commit', '-m', f"بکاپ خودکار {datetime.now().strftime('%Y-%m-%d %H:%M')}"], check=True, capture_output=True)
+        subprocess.run(['git', 'commit', '-m', f"بکاپ خودکار {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"], check=True, capture_output=True)
         subprocess.run(['git', 'push', '-u', 'origin', 'main', '--force'], check=True, capture_output=True)
         print("✅ بکاپ خودکار انجام شد!")
     except Exception as e:
         print(f"⚠️ خطا در بکاپ: {e}")
+
+def backup_loop():
+    while True:
+        auto_backup()
+        time.sleep(60)
+
+backup_thread = threading.Thread(target=backup_loop, daemon=True)
+backup_thread.start()
 
 # ============ دیتابیس ============
 def get_db():
@@ -35,6 +45,7 @@ def init_db():
             name TEXT NOT NULL,
             mobile TEXT UNIQUE NOT NULL,
             email TEXT,
+            password TEXT,
             national_code TEXT,
             address TEXT,
             postal_code TEXT,
@@ -131,6 +142,7 @@ def get_invites_needed(lesson_id):
         return 10
     return 0
 
+# ============ HTML ============
 HTML = """
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -178,7 +190,7 @@ HTML = """
         .section-title .line { flex: 1; height: 1px; background: linear-gradient(to left, rgba(0,0,0,0.08), transparent); }
         .section-title .count { font-size: 12px; color: #5f6368; font-weight: 400; }
         .lessons-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 40px; }
-        .lesson-card { background: #ffffff; border: 1px solid rgba(0,0,0,0.06); border-radius: 14px; padding: 16px 20px; transition: all 0.3s; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.02); cursor: pointer; }
+        .lesson-card { background: #ffffff; border: 1px solid rgba(0,0,0,0.06); border-radius: 14px; padding: 16px 20px; transition: all 0.3s; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.02); cursor: pointer; text-decoration: none; color: inherit; }
         .lesson-card:hover { transform: translateY(-3px); border-color: rgba(26,115,232,0.15); box-shadow: 0 8px 25px rgba(0,0,0,0.06); }
         .lesson-card.special { border-color: #e37400; background: #fef7e0; }
         .lesson-card .info { display: flex; align-items: center; gap: 12px; }
@@ -367,7 +379,7 @@ HTML = """
         <div class="lessons-grid">
             {% for lesson in lessons %}
                 <div class="lesson-card {% if lesson.special %}special{% endif %}" 
-                     onclick="{% if not session.get('user_code') %}document.getElementById('registerModal').classList.add('show');{% endif %}">
+                     onclick="{% if not session.get('user_code') %}event.preventDefault(); document.getElementById('registerModal').classList.add('show');{% else %}alert('جلسه {{ lesson.id }}: {{ lesson.name }}');{% endif %}">
                     <div class="info">
                         <span class="num">جلسه {{ lesson.id }}</span>
                         <span class="name">{{ lesson.name }}</span>
@@ -448,8 +460,10 @@ HTML = """
                 <form action="/register" method="post" id="registerForm">
                     <input type="text" name="name" placeholder="👤 نام و نام خانوادگی" required>
                     <input type="text" name="mobile" placeholder="📞 شماره موبایل" required>
-                    <input type="text" name="national_code" placeholder="🪪 کد ملی" required>
                     <input type="email" name="email" placeholder="📧 ایمیل" required>
+                    <input type="password" name="password" placeholder="🔑 رمز عبور" required>
+                    <input type="password" name="password" placeholder="🔑 رمز عبور" required>
+                    <input type="text" name="national_code" placeholder="🪪 کد ملی" required>
                     <input type="text" name="address" placeholder="🏠 آدرس منزل">
                     <input type="text" name="postal_code" placeholder="📮 کد پستی">
                     <input type="text" name="ref_code" id="refCodeInput" placeholder="🔑 کد معرف (اگر دارید)">
@@ -525,7 +539,6 @@ HTML = """
 </html>
 """
 
-# ============ روت‌های اصلی ============
 @app.route('/')
 def index():
     ref_code = request.args.get('ref', '')
@@ -544,8 +557,9 @@ def index():
 def register():
     name = request.form.get('name')
     mobile = request.form.get('mobile')
-    national_code = request.form.get('national_code')
     email = request.form.get('email')
+    password = request.form.get('password')
+    national_code = request.form.get('national_code')
     address = request.form.get('address', '')
     postal_code = request.form.get('postal_code', '')
     ref_code = request.form.get('ref_code', '').strip()
@@ -632,13 +646,12 @@ def register():
     conn = get_db()
     c = conn.cursor()
     c.execute('''
-        INSERT INTO users (name, mobile, email, national_code, address, postal_code, code, points, unlocked, invites, invited_by, invited_by_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (name, mobile, email, national_code, address, postal_code, user_code, points, unlocked, invites, invited_by, invited_by_name))
+        INSERT INTO users (name, mobile, email, password, national_code, address, postal_code, code, points, unlocked, invites, invited_by, invited_by_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (name, mobile, email, password, national_code, address, postal_code, user_code, points, unlocked, invites, invited_by, invited_by_name))
     conn.commit()
     conn.close()
     
-    # ============ بکاپ خودکار بعد از ثبت‌نام ============
     auto_backup()
     
     session['user_code'] = user_code
@@ -688,13 +701,14 @@ def db_viewer():
             <h1>📊 دیتابیس کاربران</h1>
             <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
             <table>
-                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th><th>امتیاز</th><th>جلسات باز</th><th>دعوت‌ها</th><th>تاریخ ثبت</th></tr>
+                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>رمز عبور</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th><th>امتیاز</th><th>جلسات باز</th><th>دعوت‌ها</th><th>تاریخ ثبت</th></tr>
                 {% for u in users %}
                 <tr>
                     <td>{{ u['id'] }}</td>
                     <td><strong>{{ u['name'] }}</strong></td>
                     <td dir="ltr">{{ u['mobile'] }}</td>
                     <td>{{ u['email'] or '-' }}</td>
+                    <td>{{ u['password'] or '-' }}</td>
                     <td>{{ u['national_code'] or '-' }}</td>
                     <td style="max-width:150px;word-wrap:break-word;">{{ u['address'] or '-' }}</td>
                     <td dir="ltr">{{ u['postal_code'] or '-' }}</td>
@@ -705,7 +719,7 @@ def db_viewer():
                     <td dir="ltr" style="font-size:12px;color:#5f6368;">{{ u['registered_at'][:16] if u['registered_at'] else '---' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="12" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
+                <tr><td colspan="13" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
                 {% endfor %}
             </table>
             <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
@@ -746,13 +760,14 @@ def admin():
             <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
             <p style="color:#5f6368;margin-bottom:16px;">کل امتیازات: <span class="badge">{{ total_points }}</span></p>
             <table>
-                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th><th>امتیاز</th><th>جلسات باز</th><th>دعوت‌ها</th><th>تاریخ ثبت</th></tr>
+                <tr><th>#</th><th>نام</th><th>موبایل</th><th>ایمیل</th><th>رمز عبور</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th><th>امتیاز</th><th>جلسات باز</th><th>دعوت‌ها</th><th>تاریخ ثبت</th></tr>
                 {% for u in users %}
                 <tr>
                     <td>{{ u['id'] }}</td>
                     <td><strong>{{ u['name'] }}</strong></td>
                     <td dir="ltr">{{ u['mobile'] }}</td>
                     <td>{{ u['email'] or '-' }}</td>
+                    <td>{{ u['password'] or '-' }}</td>
                     <td>{{ u['national_code'] or '-' }}</td>
                     <td style="max-width:150px;word-wrap:break-word;">{{ u['address'] or '-' }}</td>
                     <td dir="ltr">{{ u['postal_code'] or '-' }}</td>
@@ -763,7 +778,7 @@ def admin():
                     <td dir="ltr" style="font-size:12px;color:#5f6368;">{{ u['registered_at'][:16] if u['registered_at'] else '---' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="12" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
+                <tr><td colspan="13" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
                 {% endfor %}
             </table>
             <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
