@@ -461,8 +461,6 @@ HTML = """
                     <input type="text" name="name" placeholder="👤 نام و نام خانوادگی" required>
                     <input type="text" name="mobile" placeholder="📞 شماره موبایل" required>
                     <input type="email" name="email" placeholder="📧 ایمیل" required>
-                    <input type="password" name="password" placeholder="🔑 رمز عبور" required>
-                    <input type="password" name="password" placeholder="🔑 رمز عبور" required>
                     <input type="text" name="national_code" placeholder="🪪 کد ملی" required>
                     <input type="text" name="address" placeholder="🏠 آدرس منزل">
                     <input type="text" name="postal_code" placeholder="📮 کد پستی">
