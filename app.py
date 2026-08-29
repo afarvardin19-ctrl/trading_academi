@@ -1,23 +1,15 @@
-from flask import Flask, render_template_string, request, session, redirect, url_for
+from flask import Flask, render_template_string, request, session, redirect, url_for, jsonify
 import random
 import string
 import sqlite3
 from datetime import datetime
 import os
+import requests
 import threading
 import time
 
 app = Flask(__name__)
 app.secret_key = 'secret_key_12345'
-
-# ============ بکاپ خودکار (غیرفعال برای Render) ============
-def auto_backup():
-    # غیرفعال برای Render
-    pass
-
-def backup_loop():
-    # غیرفعال برای Render
-    pass
 
 # ============ دیتابیس ============
 def get_db():
@@ -50,10 +42,39 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
-    print("✅ دیتابیس جدید راه‌اندازی شد!")
+    print("✅ دیتابیس راه‌اندازی شد!")
 
 init_db()
 
+# ============ ارسال به بکاپ ============
+def send_to_backup(user_data):
+    """ارسال اطلاعات کاربر جدید به سایت بکاپ"""
+    try:
+        # دریافت همه کاربران از دیتابیس
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT * FROM users ORDER BY id DESC")
+        users = c.fetchall()
+        conn.close()
+        
+        data = []
+        for u in users:
+            data.append(dict(u))
+        
+        # ارسال به سایت بکاپ
+        response = requests.post(
+            'http://127.0.0.1:5004/backup',
+            json=data,
+            timeout=5
+        )
+        if response.status_code == 200:
+            print(f"✅ بکاپ ارسال شد: {len(data)} کاربر")
+        else:
+            print(f"⚠️ خطا در ارسال به بکاپ: {response.status_code}")
+    except Exception as e:
+        print(f"❌ خطا در ارسال به بکاپ: {e}")
+
+# ============ کدهای اصلی ============
 def generate_code():
     return 'VIP-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
@@ -529,6 +550,7 @@ HTML = """
 </html>
 """
 
+# ============ روت‌ها ============
 @app.route('/')
 def index():
     ref_code = request.args.get('ref', '')
@@ -643,6 +665,9 @@ def register():
     conn.commit()
     conn.close()
     
+    # ============ ارسال به بکاپ بعد از ثبت‌نام ============
+    send_to_backup(None)
+    
     session['user_code'] = user_code
     session['name'] = name
     session['mobile'] = mobile
@@ -659,124 +684,36 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
-# ============ صفحات دیتابیس و ادمین ============
-@app.route('/db')
-def db_viewer():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT * FROM users ORDER BY id DESC")
-    users = c.fetchall()
-    conn.close()
-    return render_template_string("""
-    <html dir='rtl'>
-    <head>
-        <title>دیتابیس کاربران</title>
-        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
-        <style>
-            body{font-family:'Vazirmatn',Tahoma;background:#f0f2f5;padding:20px;}
-            .container{max-width:1200px;margin:0 auto;background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,0.05);}
-            h1{color:#1a73e8;font-size:24px;margin-bottom:20px;}
-            table{width:100%;border-collapse:collapse;font-size:14px;}
-            th{background:#e8f0fe;padding:12px;text-align:right;border-bottom:2px solid #d2e3fc;}
-            td{padding:10px 12px;border-bottom:1px solid #eef2f7;}
-            tr:hover{background:#f8faff;}
-            .badge{background:#e8f0fe;color:#1a73e8;padding:2px 10px;border-radius:30px;font-size:12px;}
-            .back{color:#1a73e8;text-decoration:none;font-weight:600;}
-            .back:hover{text-decoration:underline;}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>📊 دیتابیس کاربران</h1>
-            <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
-            <table>
-                <tr><th>#</th><th>نام</th><th>نام خانوادگی</th><th>موبایل</th><th>ایمیل</th><th>رمز عبور</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th><th>امتیاز</th><th>جلسات باز</th><th>دعوت‌ها</th><th>تاریخ ثبت</th></tr>
-                {% for u in users %}
-                <tr>
-                    <td>{{ u['id'] }}</td>
-                    <td><strong>{{ u['name'] }}</strong></td>
-                    <td>{{ u['family'] or '-' }}</td>
-                    <td dir="ltr">{{ u['mobile'] }}</td>
-                    <td>{{ u['email'] or '-' }}</td>
-                    <td>{{ u['password'] or '-' }}</td>
-                    <td>{{ u['national_code'] or '-' }}</td>
-                    <td style="max-width:150px;word-wrap:break-word;">{{ u['address'] or '-' }}</td>
-                    <td dir="ltr">{{ u['postal_code'] or '-' }}</td>
-                    <td><code>{{ u['code'] or '-' }}</code></td>
-                    <td>{{ u['points'] }}</td>
-                    <td>{{ u['unlocked'] }}</td>
-                    <td>{{ u['invites'] }}</td>
-                    <td dir="ltr" style="font-size:12px;color:#5f6368;">{{ u['registered_at'][:16] if u['registered_at'] else '---' }}</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="14" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
-                {% endfor %}
-            </table>
-            <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
-        </div>
-    </body>
-    </html>
-    """, users=users)
-
-@app.route('/admin')
-def admin():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT * FROM users ORDER BY id DESC")
-    users = c.fetchall()
-    conn.close()
-    total_points = sum(u['points'] for u in users)
-    return render_template_string("""
-    <html dir='rtl'>
-    <head>
-        <title>پنل مدیریت</title>
-        <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
-        <style>
-            body{font-family:'Vazirmatn',Tahoma;background:#f0f2f5;padding:20px;}
-            .container{max-width:1200px;margin:0 auto;background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,0.05);}
-            h1{color:#1a73e8;font-size:24px;margin-bottom:20px;}
-            table{width:100%;border-collapse:collapse;font-size:14px;}
-            th{background:#e8f0fe;padding:12px;text-align:right;border-bottom:2px solid #d2e3fc;}
-            td{padding:10px 12px;border-bottom:1px solid #eef2f7;}
-            tr:hover{background:#f8faff;}
-            .badge{background:#e8f0fe;color:#1a73e8;padding:2px 10px;border-radius:30px;font-size:12px;}
-            .back{color:#1a73e8;text-decoration:none;font-weight:600;}
-            .back:hover{text-decoration:underline;}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>🔐 پنل مدیریت</h1>
-            <p style="color:#5f6368;margin-bottom:16px;">تعداد کاربران: <span class="badge">{{ users|length }}</span></p>
-            <p style="color:#5f6368;margin-bottom:16px;">کل امتیازات: <span class="badge">{{ total_points }}</span></p>
-            <table>
-                <tr><th>#</th><th>نام</th><th>نام خانوادگی</th><th>موبایل</th><th>ایمیل</th><th>رمز عبور</th><th>کد ملی</th><th>آدرس</th><th>کد پستی</th><th>کد معرف</th><th>امتیاز</th><th>جلسات باز</th><th>دعوت‌ها</th><th>تاریخ ثبت</th></tr>
-                {% for u in users %}
-                <tr>
-                    <td>{{ u['id'] }}</td>
-                    <td><strong>{{ u['name'] }}</strong></td>
-                    <td>{{ u['family'] or '-' }}</td>
-                    <td dir="ltr">{{ u['mobile'] }}</td>
-                    <td>{{ u['email'] or '-' }}</td>
-                    <td>{{ u['password'] or '-' }}</td>
-                    <td>{{ u['national_code'] or '-' }}</td>
-                    <td style="max-width:150px;word-wrap:break-word;">{{ u['address'] or '-' }}</td>
-                    <td dir="ltr">{{ u['postal_code'] or '-' }}</td>
-                    <td><code>{{ u['code'] or '-' }}</code></td>
-                    <td>{{ u['points'] }}</td>
-                    <td>{{ u['unlocked'] }}</td>
-                    <td>{{ u['invites'] }}</td>
-                    <td dir="ltr" style="font-size:12px;color:#5f6368;">{{ u['registered_at'][:16] if u['registered_at'] else '---' }}</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="14" style="text-align:center;padding:40px;color:#9aa0a6;">❌ هیچ کاربری ثبت‌نام نکرده است</td></tr>
-                {% endfor %}
-            </table>
-            <p style="margin-top:20px;"><a href="/" class="back">↩ بازگشت به سایت</a></p>
-        </div>
-    </body>
-    </html>
-    """, users=users, total_points=total_points)
+# ============ مسیر JSON برای بات ============
+@app.route('/api/users')
+def api_users():
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT * FROM users ORDER BY id DESC")
+        users = c.fetchall()
+        conn.close()
+        
+        data = []
+        for u in users:
+            data.append({
+                'id': u['id'],
+                'name': u['name'],
+                'family': u['family'],
+                'mobile': u['mobile'],
+                'email': u['email'],
+                'national_code': u['national_code'],
+                'address': u['address'],
+                'postal_code': u['postal_code'],
+                'code': u['code'],
+                'points': u['points'],
+                'unlocked': u['unlocked'],
+                'invites': u['invites'],
+                'registered_at': u['registered_at']
+            })
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000, debug=True)
